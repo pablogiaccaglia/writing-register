@@ -75,3 +75,62 @@ def test_the_session_hook_does_not_repeat_the_voice_the_style_already_carries(tm
     text = (reply or {}).get("hookSpecificOutput", {}).get("additionalContext", "")
     assert "# Voice: Tester" not in text, "the style already carries it"
     assert "rewrites these automatically" in text, "the note about the rewrites still belongs here"
+
+
+# The plugin's own style, for users with no voice (2026-09-21).
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+
+def test_the_plugin_ships_the_plain_style_exactly_as_built():
+    shipped = (REPO_ROOT / "output-styles" / f"{style.PLAIN}.md").read_text()
+    assert shipped == style.plain(), "run: .venv/bin/python -c 'from writing_register import style; print(style.plain(), end=\"\")' > output-styles/human-prose.md"
+
+
+def test_the_plain_style_carries_the_patterns_and_never_a_voice(tmp_path, monkeypatch):
+    _config(tmp_path, monkeypatch)
+    text = style.plain()
+    assert f"name: {style.PLAIN}" in text and "keep-coding-instructions: true" in text
+    assert "Not X but Y" in text and "# Voice:" not in text
+    assert "force-for-plugin" not in text, "the plugin never overrides a style the user chose"
+
+
+def _selected_in_project(tmp_path, monkeypatch, name, file="settings.local.json"):
+    _config(tmp_path, monkeypatch)
+    home = tmp_path / "claude"
+    home.mkdir()
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(home))
+    project = tmp_path / "project"
+    (project / ".claude").mkdir(parents=True)
+    (project / ".claude" / file).write_text(json.dumps({"outputStyle": name}))
+    return project
+
+
+def _session_text(project):
+    from writing_register.hooks import session_start
+    reply = session_start({"session_id": "s", "cwd": str(project)})
+    return (reply or {}).get("hookSpecificOutput", {}).get("additionalContext", "")
+
+
+def test_a_style_chosen_in_config_is_read_from_the_project_settings(tmp_path, monkeypatch):
+    """/config saves the choice in the project's .claude/settings.local.json."""
+    project = _selected_in_project(tmp_path, monkeypatch, style.NAME)
+    text = _session_text(project)
+    assert "# Voice: Tester" not in text and "Not X but Y" not in text
+
+
+def test_with_the_plugin_style_the_hook_sends_the_voice_but_not_the_patterns_again(tmp_path, monkeypatch):
+    for chosen in (f"writing-register:{style.PLAIN}", style.PLAIN):
+        case = tmp_path / chosen.replace(":", "_")
+        case.mkdir()
+        project = _selected_in_project(case, monkeypatch, chosen)
+        text = _session_text(project)
+        assert "# Voice: Tester" in text, chosen
+        assert "Not X but Y" not in text, f"{chosen}: the style already carries the patterns"
+
+
+def test_the_local_project_setting_wins_over_the_user_setting(tmp_path, monkeypatch):
+    project = _selected_in_project(tmp_path, monkeypatch, "Explanatory")
+    (tmp_path / "claude" / "settings.json").write_text(json.dumps({"outputStyle": style.NAME}))
+    assert style.selected(project) == "Explanatory"
+    assert "# Voice: Tester" in _session_text(project)

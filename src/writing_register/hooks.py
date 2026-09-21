@@ -718,9 +718,12 @@ def session_start(payload: dict, spawn=None) -> dict | None:
     # When the voice and the patterns are already in the system prompt as an
     # output style, sending them again here would put them in twice.
     from .patterns import card
-    from .style import active as style_active
-    if style_active():
+    from .style import active as style_active, plain_active
+    cwd = payload.get("cwd")
+    if style_active(cwd):
         voice = ""
+        patterns_card = ""
+    elif plain_active(cwd):
         patterns_card = ""
     else:
         patterns_card = card()

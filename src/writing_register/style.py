@@ -9,7 +9,10 @@ than the session-start hook, whose text lands in the conversation.
 
 A plugin cannot ship this file, because the voice belongs to the person, not
 to the plugin. `wr style` writes it from whichever voice is active, and
-`--enable` selects it in the user's settings.
+`--enable` selects it in the user's settings. What the plugin does ship is the
+style without a voice, `human-prose`, in output-styles/ at the repository root
+(built by `plain()`, kept equal to it by a test), so a user with no voice can
+still pick a style that steers every reply.
 
 What the style does not cover is traffic between agents: a subagent's report
 to whoever called it, a message to another session, a prompt written for a
@@ -27,6 +30,10 @@ from .voice import read_core
 from .patterns import card
 
 NAME = "writing-register"
+PLAIN = "human-prose"
+# Claude Code lists the plugin's style as "writing-register:human-prose"
+# (seen with `/output-style`, 2026-09-21); the bare name is accepted as well.
+PLAIN_NAMES = {f"writing-register:{PLAIN}", PLAIN}
 SCOPE = """This style governs what a person reads: replies in this conversation, documentation and
 READMEs, reports, meeting and work cards, code comments and docstrings, commit messages and pull
 request descriptions, and messages written to a person.
@@ -75,6 +82,18 @@ def build() -> str:
             f"{body}\n")
 
 
+def plain() -> str:
+    """The style the plugin ships: the scope and the patterns, never a voice."""
+    patterns_card = card()
+    if not patterns_card:
+        raise StyleError("the humanizer skill is not readable, so there are no patterns to ship")
+    body = "\n\n".join((SCOPE, patterns_card))
+    return (f"---\nname: {PLAIN}\n"
+            "description: Write for people so it reads as a person wrote it, and keep agent traffic plain\n"
+            "keep-coding-instructions: true\n---\n\n"
+            f"{body}\n")
+
+
 def install(enable: bool = False) -> Path:
     """Write the style where Claude Code reads it, and optionally select it."""
     text = build()
@@ -107,14 +126,39 @@ def _select(name: str) -> None:
         raise StyleError(f"could not write {path}: {e}") from e
 
 
-def active() -> bool:
-    """Whether this style is the one Claude Code is set to use.
-
-    The session-start hook asks, so that the voice does not travel twice: once
-    in the system prompt and once in the conversation."""
-    path = claude_dir() / "settings.json"
+def _style_in(path: Path) -> str | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return False
-    return isinstance(data, dict) and data.get("outputStyle") == NAME
+        return None
+    value = data.get("outputStyle") if isinstance(data, dict) else None
+    return value if isinstance(value, str) and value else None
+
+
+def selected(cwd=None) -> str | None:
+    """The output style Claude Code is set to use, read the way it reads it:
+    the project's .claude/settings.local.json (where /config saves a choice),
+    then the project's .claude/settings.json, then the user's settings."""
+    places = []
+    if cwd:
+        project = Path(cwd) / ".claude"
+        places += [project / "settings.local.json", project / "settings.json"]
+    places.append(claude_dir() / "settings.json")
+    for path in places:
+        value = _style_in(path)
+        if value:
+            return value
+    return None
+
+
+def active(cwd=None) -> bool:
+    """Whether the voice style is the one Claude Code is set to use.
+
+    The session-start hook asks, so that the voice does not travel twice: once
+    in the system prompt and once in the conversation."""
+    return selected(cwd) == NAME
+
+
+def plain_active(cwd=None) -> bool:
+    """Whether the plugin's style, which carries the patterns, is selected."""
+    return selected(cwd) in PLAIN_NAMES
