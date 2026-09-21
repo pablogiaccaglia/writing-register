@@ -18,7 +18,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-SKILL = Path(__file__).resolve().parent.parent.parent / "vendor" / "humanizer" / "SKILL.md"
+from .resources import SKILL
+
 _HEADING = re.compile(r"(?m)^### (\d+)\. (.+)$")
 _HEAD = ("Write prose that reads as a person wrote it. These are the patterns that make text "
          "read as machine-written, by number, from the humanizer skill:")

@@ -48,7 +48,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 
 ALLOWED_SUFFIXES = {".py", ".md", ".json", ".toml", ".yml", ".yaml", ".sh", ".txt"}
-ALLOWED_NAMES = {"LICENSE", ".gitignore"}
+ALLOWED_NAMES = {"LICENSE", ".gitignore", "MANIFEST.in"}
 MAX_BYTES = 1_000_000
 MAX_TOKENS = 4
 INWORD_MIN = 3

@@ -179,7 +179,7 @@ def test_the_file_policy(tmp_path):
     root = _tree(tmp_path, {
         "LICENSE": "MIT\n", ".gitignore": "out/\n", "stationlog/run.sh": "echo ok\n",
         "notes.txt": "fine\n", "conf.yaml": "a: 1\n", "conf.yml": "a: 1\n", "pyproject.toml": "[x]\n",
-        "data.json": "{}\n",
+        "data.json": "{}\n", "MANIFEST.in": "graft voice\n",
         ".DS_Store": "x", "analysis.ipynb": "{}", "report.html": "<p>", "shot.png": "x",
         "log.jsonl": "{}\n", "Makefile": "all:\n", ".claude/settings.json": "{}\n",
         "sub/.git/HEAD": "ref: refs/heads/main\n",

@@ -1,0 +1,4 @@
+# The source archive carries what setup.py copies into the package.
+graft vendor/humanizer
+graft voice
+prune vendor/humanizer/.git

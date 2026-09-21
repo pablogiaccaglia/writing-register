@@ -32,8 +32,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
-SKILL = REPO / "vendor" / "humanizer" / "SKILL.md"
+from .resources import SKILL
 
 DEFAULT_TIMEOUT = 600
 

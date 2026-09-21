@@ -19,8 +19,9 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from .resources import VOICES_DIR
+
 REPO = Path(__file__).resolve().parents[2]
-VOICES_DIR = REPO / "voice"
 CONFIG_ENV = "WR_CONFIG"
 CORE_MARKER = "<!-- wr:end-of-core -->"
 KNOWN_KEYS = {"voice", "auto", "metrics"}
