@@ -180,7 +180,7 @@ The exit code tells a script whether every file went through:
 |---|---|
 | 0 | every file was rewritten, or needed nothing |
 | 1 | a rewrite was refused by the string checks or the check against the code, or a model call failed |
-| 2 | a path is not a file, the voice or the configuration cannot be used, or wr cannot find the skill it reads from its clone (install it with `install.sh`) |
+| 2 | a path is not a file, the voice or the configuration cannot be used, or the installation of wr is incomplete because the humanizer skill is missing (reinstall it as the message says) |
 
 ## Automatic rewrites
 

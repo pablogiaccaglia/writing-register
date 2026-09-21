@@ -3,12 +3,12 @@
   "owner": {
     "name": "Pablo Giaccaglia"
   },
-  "description": "Install writing-register as a Claude plugin.",
+  "description": "writing-register: make Claude Code write like a careful colleague, in your own voice if you want.",
   "plugins": [
     {
       "name": "writing-register",
       "source": "./",
-      "description": "The humanizer skill, vendored whole, plus a voice, `wr humanize` and optional automatic rewrites."
+      "description": "Steer Claude Code's prose with the humanizer patterns and your own voice, rewrite commit messages, PR descriptions and markdown automatically, and check rewrites against the code."
     }
   ]
 }

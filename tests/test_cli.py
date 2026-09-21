@@ -154,7 +154,7 @@ def test_a_missing_skill_exits_2_and_names_the_installer(tmp_path, monkeypatch):
     from writing_register import humanize as h
     monkeypatch.setattr(h, "SKILL", tmp_path / "missing.md")
     code, out, s, _ = _run(tmp_path)
-    assert code == 2 and "install.sh" in out and not s.prompt
+    assert code == 2 and "uv tool install" in out and "install.sh" in out and not s.prompt
 
 
 def test_a_path_that_is_not_a_file_exits_2(tmp_path):

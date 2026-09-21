@@ -1,6 +1,6 @@
 {
   "name": "writing-register",
-  "description": "Write and rewrite prose so it reads as a person wrote it: the humanizer skill, vendored whole, plus a voice, `wr humanize`, and hooks that rewrite commit messages, PR descriptions and markdown files by themselves when turned on.",
+  "description": "Make Claude Code write like a careful colleague. The humanizer patterns, and your own voice if you set one, steer every session and subagent; hooks rewrite commit messages, PR descriptions and markdown by themselves; wr humanize rewrites a document and checks each changed sentence against the code. The hooks need the wr command: uv tool install git+https://github.com/pablogiaccaglia/writing-register",
   "version": "1.0.0",
   "author": {
     "name": "Pablo Giaccaglia",
@@ -10,5 +10,18 @@
   "skills": [
     "./vendor/humanizer",
     "./plugin/skills/writing-register"
+  ],
+  "homepage": "https://github.com/pablogiaccaglia/writing-register",
+  "repository": "https://github.com/pablogiaccaglia/writing-register",
+  "keywords": [
+    "writing",
+    "prose",
+    "humanizer",
+    "voice",
+    "style",
+    "hooks",
+    "output-style",
+    "documentation",
+    "commit-messages"
   ]
 }

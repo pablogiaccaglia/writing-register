@@ -350,7 +350,7 @@ def test_a_missing_skill_says_how_to_install(monkeypatch, tmp_path):
     import pytest
     from writing_register import humanize as h
     monkeypatch.setattr(h, "SKILL", tmp_path / "missing" / "SKILL.md")
-    with pytest.raises(h.SetupError, match="install.sh"):
+    with pytest.raises(h.SetupError, match="uv tool install .*install.sh"):
         h.load_skill()
 
 

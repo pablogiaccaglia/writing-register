@@ -109,16 +109,18 @@ class SetupError(Exception):
 def load_skill() -> str:
     """The vendored humanizer skill, exactly as upstream ships it.
 
-    It is read from the clone, not from the installed package, so a normal
-    `pip install` leaves it behind; the audit on 2026-09-14 found that the first
-    rewrite then died with a bare traceback."""
+    It is read from the clone, or from the copy an installed package carries
+    (resources.py). When neither has it the installation is incomplete; the
+    audit on 2026-09-14 found that the first rewrite then died with a bare
+    traceback, so the reason and the fix are given instead."""
     try:
         return SKILL.read_text(encoding="utf-8")
     except OSError as e:
         raise SetupError(
-            f"the humanizer skill is not at {SKILL}. wr reads it and the voice "
-            f"from its git clone, so install it with install.sh (an editable "
-            f"install), not with a plain pip install") from e
+            f"the humanizer skill is not at {SKILL}, so this installation of wr is "
+            f"incomplete. Reinstall it with `uv tool install --force "
+            f"git+https://github.com/pablogiaccaglia/writing-register`, or run "
+            f"install.sh in a clone") from e
 
 
 def _git_ignored(root: Path, rels: list[str]) -> set[str] | None:
