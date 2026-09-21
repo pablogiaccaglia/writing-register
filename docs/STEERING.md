@@ -18,14 +18,18 @@ differ in force and in reach.
 | Mechanism | Where the text goes | When it applies | Reaches subagents | Survives compaction |
 |---|---|---|---|---|
 | Output style | The instructions Claude Code gives Claude | Every request | No, only the main conversation and a fork | Yes |
-| Hook context (`SessionStart`, `SubagentStart`, `UserPromptSubmit`) | The conversation | When the event fires | Only through `SubagentStart` | Only when the hook matches `compact` |
+| Hook context (`SessionStart`, `SubagentStart`, `UserPromptSubmit`) | The conversation, at most about 10,000 characters per hook | When the event fires | Only through `SubagentStart` | Only when the hook matches `compact` |
 | `CLAUDE.md` and `.claude/rules/` | A user message after the system prompt | Every session | Yes, unless the agent opts out | Yes, for the project file |
 | Skills | The conversation, when invoked | Only when something invokes it | Only when preloaded into an agent | Partly, within a token budget |
 
-Two facts decide most designs. **An output style does not reach an ordinary
+Three facts decide most designs. **An output style does not reach an ordinary
 subagent**, because a subagent runs its own system prompt. **A skill loads only
 when the model chooses it**, from a description of at most 1,536 characters, so
-nothing guarantees it is ever read.
+nothing guarantees it is ever read. **A hook's text is cut above about 10,000
+characters**: Claude Code saves it to a file and shows the model a 2KB preview
+with the file's path. The documentation does not state the limit; in the
+transcripts the largest text delivered whole was 9.7KB and the smallest one
+persisted was 9.9KB (2026-09-21).
 
 There is a fifth mechanism that is not instruction at all: a `PreToolUse` hook
 can replace what a tool is about to do, which is how wr rewrites a commit
@@ -134,14 +138,28 @@ output style can reach. The first line differs: a subagent is told that the
 voice covers what a person will read and that the report it returns to its
 caller stays plain.
 
+**Both hooks deliver in parts.** A voice is longer than the 10,000 characters
+Claude Code shows of one hook's text, so until 2026-09-21 every session-start
+and subagent delivery reached the model as its first 2KB only: 227 deliveries
+since 2026-09-15, none whole. The plugin now registers each of the two hooks
+four times, and `wr hook ... --part K` sends only part K, cut where a section
+starts, at most 9,000 characters, and labelled "part K of N" because Claude Code
+may deliver the parts in any order. A live check in an interactive session
+showed a new subagent receiving all three parts of the voice in full.
+
 **`wr style` writes the same two things as an output style** for anyone who
 wants them in the system prompt instead. It works with no voice, carrying the
-card alone. The style is generated rather than shipped, because a plugin's
-files are the same for everyone and a voice belongs to a person.
+card alone. The voice style is generated rather than shipped, because a plugin's
+files are the same for everyone and a voice belongs to a person; the plugin does
+ship the style without a voice, `writing-register:human-prose`, for anyone who
+has none.
 `keep-coding-instructions: true` leaves Claude Code's software-engineering
 instructions in place, so the style changes how the model writes and nothing
-about how it works. When the style is selected, the session-start hook stops
-sending the voice, so it never travels twice.
+about how it works. When the voice style is selected, the session-start hook
+stops sending the voice and the card, so they never travel twice; with the
+plugin's style it stops sending the card only. The hook reads the choice the way
+Claude Code does: the project's `.claude/settings.local.json`, where `/config`
+saves it, then the project's `.claude/settings.json`, then the user's settings.
 
 **Hooks on tools do the deterministic half.** A commit message and a pull
 request description are rewritten before their command runs, and the markdown
@@ -183,8 +201,9 @@ words it had to change is the number that should fall as steering works.
   prompt and the hook's text is in the conversation, which should favour the
   style, but nothing here has measured the difference. Running with the style
   for a while and re-reading the same numbers is the experiment.
-- **Whether subagents need the whole voice.** They receive 13,500 characters
-  each. A shorter card might do as well, and the meter plus the rates script
-  can answer it once there is enough subagent text written under the voice.
+- **What the whole voice changes in subagents.** Until 2026-09-21 they received
+  only the first 2KB of it, so the measurements above describe subagents with
+  almost no voice. The rates script can answer the question once there is
+  enough subagent text written with all parts delivered.
 - **Whether the agent-to-agent line is in the right place.** A subagent's
   report often reaches a person second-hand, through whoever relays it.

@@ -34,7 +34,7 @@ Before using the command, log in to the `claude` tool through `claude` itself. T
 
 | Option | What it does |
 |---|---|
-| `--voice NAME\|FILE\|none` | The voice for this run, overriding the configuration. A name refers to `voice/<name>.md` in this clone, a value with a slash or ending in `.md` is a file path, and `none` sends the humanizer skill alone |
+| `--voice NAME\|FILE\|none` | The voice for this run, overriding the configuration. A name refers to a voice shipped with wr (a `voice/<name>/` directory or `voice/<name>.md` file, in the clone or inside the installed package), a value with a slash or ending in `.md` is a file path, and `none` sends the humanizer skill alone |
 | `--full-voice` | Sends the whole voice file instead of only its core, the part of the file written for the model (see [Writing a voice](#writing-a-voice)) |
 | `--root DIR` | The repository root. A path the document names in inline code, such as `src/job.py`, is looked up under it. The default is the current directory |
 | `--no-sources` | Sends the document without the files it points at, so the rewrite cannot add any background. The check still runs |
@@ -62,7 +62,7 @@ voice = "technical-colleague"
 
 The command looks for the configuration file in three places, in order: `$WR_CONFIG`, then `$XDG_CONFIG_HOME/writing-register/config.toml`, then `~/.config/writing-register/config.toml`. The file has two settings:
 
-- `voice` is either the name of a voice in this clone's `voice/` folder or a path to a voice file. A path may start with `~`, which is expanded, and a relative path is read from the configuration file's folder. `"none"`, an empty value and a missing file all mean no voice.
+- `voice` is either the name of a voice shipped with wr, such as `technical-colleague`, or a path to a voice file or voice directory. A path may start with `~`, which is expanded, and a relative path is read from the configuration file's folder. `"none"`, an empty value and a missing file all mean no voice.
 - `auto` lists what the Claude Code plugin rewrites by itself, as described in [Automatic rewrites](#automatic-rewrites).
 
 The command checks the configuration before it makes any model call. The check is strict, so a typo such as `vocie` cannot turn the voice off without anyone noticing. The run stops with exit code 2 and a message naming the problem if the file is not valid TOML or contains any of these: an unknown setting, a voice name that does not exist, a voice file that is missing, or an `auto` value the plugin does not know.
@@ -270,9 +270,9 @@ wr style --enable   # writes it and selects it in ~/.claude/settings.json
 wr style --print    # prints it instead
 ```
 
-The style carries the machine-writing patterns and, when one is set, the voice, with the voice winning where they disagree. It is generated rather than shipped, because a plugin's files are the same for everyone and a voice belongs to a person. It sets `keep-coding-instructions: true`, so Claude Code's software-engineering instructions stay as they are and only the writing changes. Run it again after editing the voice, and restart Claude Code to pick the change up.
+The style carries the machine-writing patterns and, when one is set, the voice, with the voice winning where they disagree. It is generated rather than shipped, because a plugin's files are the same for everyone and a voice belongs to a person. Without a voice, the plugin's own style `writing-register:human-prose` carries the patterns alone: select it with `/output-style writing-register:human-prose` or in `/config`. It sets `keep-coding-instructions: true`, so Claude Code's software-engineering instructions stay as they are and only the writing changes. Run it again after editing the voice, and restart Claude Code to pick the change up.
 
-A style reaches the main conversation and a fork, never an ordinary subagent, which is why the plugin also gives the voice to each subagent through a hook. When the style is selected, the session-start hook stops sending the voice, so it never travels twice. [docs/STEERING.md](STEERING.md) covers the trade-off in full.
+A style reaches the main conversation and a fork, never an ordinary subagent, which is why the plugin also gives the voice to each subagent through a hook. Claude Code shows the model at most about 10,000 characters of one hook's text, so the session-start and subagent hooks are registered four times and each sends one part of the voice, labelled "part K of N". When the voice style is selected, the session-start hook stops sending the voice and the patterns, so they never travel twice; with the plugin's style it stops sending the patterns only. The hook reads the selected style from the project's `.claude/settings.local.json` (where `/config` saves it), then the project's `.claude/settings.json`, then the user's settings. [docs/STEERING.md](STEERING.md) covers the trade-off in full.
 
 ## What the rewrites have had to change
 
