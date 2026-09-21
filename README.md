@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![tests](https://github.com/pablogiaccaglia/writing-register/actions/workflows/tests.yml/badge.svg)](https://github.com/pablogiaccaglia/writing-register/actions/workflows/tests.yml)
 [![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-D97757)](#quick-start)
-[![skills.sh](https://skills.sh/b/pablogiaccaglia/writing-register)](https://skills.sh/pablogiaccaglia/writing-register)
+[![skills.sh](https://skills.sh/b/pablogiaccaglia/writing-register)](https://skills.sh/pablogiaccaglia/writing-register/writing-register)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](pyproject.toml)
 
 Text written by an AI assistant tends to carry the same marks: filler words such as "seamlessly" and "pivotal", dashes everywhere, the "it's not just X, it's Y" construction and a closing slogan. If you work with Claude Code every day, you end up correcting the same things in every README, commit message and report it writes. writing-register removes them at three points in the work:
