@@ -1,6 +1,6 @@
 # writing-register
 
-**Make Claude Code write like a careful colleague: no machine-sounding prose, and, if you want, in your own voice.**
+**Make Claude Code write like a careful colleague, without the marks of machine-written prose and, if you want, in your own voice.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![tests](https://github.com/pablogiaccaglia/writing-register/actions/workflows/tests.yml/badge.svg)](https://github.com/pablogiaccaglia/writing-register/actions/workflows/tests.yml)
@@ -8,13 +8,13 @@
 [![skills.sh](https://skills.sh/b/pablogiaccaglia/writing-register)](https://skills.sh/pablogiaccaglia/writing-register)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB.svg)](pyproject.toml)
 
-Text written by an AI assistant tends to carry the same marks: filler words such as "seamlessly" and "pivotal", dashes everywhere, "it's not just X, it's Y", a closing slogan. If you work with Claude Code every day, you end up correcting the same things in every README, commit message and report it writes. writing-register fixes them at the three moments where it can:
+Text written by an AI assistant tends to carry the same marks: filler words such as "seamlessly" and "pivotal", dashes everywhere, the "it's not just X, it's Y" construction and a closing slogan. If you work with Claude Code every day, you end up correcting the same things in every README, commit message and report it writes. writing-register removes them at three points in the work:
 
-1. **Before Claude writes.** Claude Code is told how to write in every session and every subagent, so most of the problems never appear.
-2. **After Claude writes.** Commit messages, pull request descriptions and markdown files are rewritten automatically, and Claude is shown each change so it can check that the meaning survived.
-3. **When you ask.** `wr humanize FILE` rewrites a finished document, then checks every sentence it changed against the repository's code and puts back any the code does not support.
+1. **Before Claude writes.** Every session and every subagent receives instructions on how to write, so most of the problems never appear.
+2. **After Claude writes.** The plugin rewrites commit messages, pull request descriptions and markdown files automatically, and shows Claude each change so it can check that the meaning survived.
+3. **When you ask.** `wr humanize FILE` rewrites a finished document, checks every sentence it changed against the repository's code, and puts back any sentence the code does not support.
 
-All three follow the [humanizer](https://github.com/blader/humanizer) skill, a widely used list of the patterns that make text read as machine-written. You can add a **voice** on top: a set of written rules about how *you* want to read, built from the corrections you already make. This repository ships an example voice and a guide to building your own.
+All three follow the [humanizer](https://github.com/blader/humanizer) skill, a widely used list of the patterns that make text read as machine-written. You can add a voice on top: a set of written rules about how you want to read, built from the corrections you already make. This repository ships an example voice and a guide to building your own.
 
 ## Contents
 
@@ -31,58 +31,49 @@ All three follow the [humanizer](https://github.com/blader/humanizer) skill, a w
 ## How it works
 
 ```mermaid
-flowchart LR
-    P["Humanizer patterns<br/>the marks of machine prose"]
-    V["Your voice (optional)<br/>rules built from your corrections"]
-    subgraph B["1 · Before Claude writes"]
-        S["Output style and session hooks<br/>steer every reply, subagent and file"]
-    end
-    subgraph A["2 · After Claude writes"]
-        R["Automatic rewrites<br/>commit messages, PR descriptions, markdown"]
-    end
-    subgraph D["3 · When you ask"]
-        H["wr humanize FILE<br/>rewrite, then check each changed sentence against the code"]
-    end
-    P --> S & R & H
-    V --> S & R & H
+flowchart TB
+    G["<b>The rules</b><br/>humanizer patterns, plus your voice if you set one"]
+    G --> S["<b>1 · Before Claude writes</b><br/>The output style and hooks steer every reply, subagent and file"]
+    G --> R["<b>2 · After Claude writes</b><br/>Commit messages, PR descriptions and markdown are rewritten"]
+    G --> H["<b>3 · When you ask</b><br/>wr humanize rewrites a document and checks it against the code"]
 ```
 
-The patterns come from the humanizer skill, which this repository keeps as an unchanged copy in `vendor/humanizer/`. A voice, when you set one, takes precedence wherever the two disagree. Nothing uses a voice until you turn one on, so nobody writes in someone else's voice by accident.
+The patterns come from the humanizer skill, which this repository keeps as an unchanged copy in `vendor/humanizer/`. Where a voice and the patterns disagree, the voice wins. No voice is used until you turn one on, so nobody ends up writing in someone else's voice by accident.
 
 ## Before and after
 
-A paragraph of the kind an assistant writes, and what `wr humanize` made of it with the example voice, in one model call of 5 seconds:
+Below is a paragraph of the kind an assistant writes, followed by what `wr humanize` made of it with the example voice, in one model call that took 5 seconds:
 
 > **Before.** The alerting subsystem is a pivotal component that seamlessly empowers operators to stay on top of their weather stations. It's not just about sending notifications — it's about delivering actionable insights at the right time. When a station misses five consecutive polls, the system intelligently raises an alert, ensuring that no outage goes unnoticed. Alerts are sent to the dashboard, and they are also written to `out/alerts.log`, providing a robust audit trail. In short, alerting is the heartbeat of reliable station monitoring.
 
 > **After.** The alerting subsystem tells operators when one of their weather stations stops responding. It raises an alert when a station misses five consecutive polls, so an outage does not go unnoticed. Each alert appears on the dashboard and is also written to `out/alerts.log`, which keeps an audit trail of every alert raised.
 
-Every fact survives: the five polls, the dashboard, the log file. What goes is the filler, the dash, the "not just X" construction and the closing slogan.
+The rewrite keeps every fact (the five polls, the dashboard, the log file) and drops the filler, the dash, the "not just X" construction and the closing slogan.
 
 ## Quick start
 
 You need Python 3.11 or newer, [uv](https://docs.astral.sh/uv/) (or pipx), and [Claude Code](https://code.claude.com), installed and logged in through `claude` itself.
 
-**1. Install the `wr` command.** The plugin's hooks call it, and it runs the rewrites.
+**1. Install the `wr` command.** The command runs the rewrites, and the plugin's hooks call it.
 
 ```bash
 uv tool install git+https://github.com/pablogiaccaglia/writing-register
 wr voice      # says there is no voice until you turn one on
 ```
 
-**2. Install the Claude Code plugin.** Inside Claude Code:
+**2. Install the Claude Code plugin.** Inside Claude Code, run:
 
 ```
 /plugin marketplace add pablogiaccaglia/writing-register
 /plugin install writing-register@writing-register
 ```
 
-Restart Claude Code afterwards, since a session loads its plugins when it starts. The plugin brings two skills, the hooks and an output style.
+Restart Claude Code afterwards, since a session loads its plugins when it starts. The plugin contains two skills, the hooks and an output style.
 
 **3. Choose how Claude writes.** Pick one:
 
-- **The patterns only:** run `/output-style writing-register:human-prose`, or choose it in `/config`.
-- **The patterns and a voice:** set a voice (step 4), then run `wr style --enable`. This writes an output style named `writing-register` that carries both, and selects it.
+- **The patterns only:** run `/output-style writing-register:human-prose`, or choose that style in `/config`.
+- **The patterns and a voice:** set a voice (step 4), then run `wr style --enable`, which writes an output style named `writing-register` carrying both and selects it.
 
 **4. Optional: a voice and the automatic rewrites.** Create `~/.config/writing-register/config.toml`:
 
@@ -95,33 +86,33 @@ auto = ["markdown", "commit", "pr"]    # what the plugin rewrites by itself
 
 ### Other agents: skills only
 
-Codex, Cursor and other agents can install the two skills, without the hooks or the output style, through [skills.sh](https://skills.sh):
+Codex, Cursor and other agents can install the two skills through [skills.sh](https://skills.sh), without the hooks or the output style:
 
 ```bash
 npx skills add pablogiaccaglia/writing-register
 ```
 
-The writing-register skill runs `wr`, so install the command as in step 1 as well.
+The writing-register skill calls `wr`, so install the command as in step 1 as well.
 
 ## The three layers
 
 ### 1. Steering: before Claude writes
 
-Claude Code sends an output style's text with every request, and the style survives when a long conversation is compacted. That makes the output style the strongest place to say how to write. The plugin ships `writing-register:human-prose`, which carries the patterns, and `wr style` builds `writing-register`, which carries your voice as well. Both keep Claude Code's own coding instructions and govern only what a person reads; a report from one agent to another stays plain and literal, since a model reads it.
+Claude Code sends the text of the selected output style with every request, and the style is kept when a long conversation is compacted, which makes it the strongest place to say how to write. The plugin ships `writing-register:human-prose`, which carries the patterns, and `wr style` builds `writing-register`, which carries your voice as well. Both styles keep Claude Code's own coding instructions and govern only what a person reads. A report from one agent to another stays plain and literal, since a model reads it.
 
-An output style does not reach subagents, so the plugin's hooks give every subagent the same instructions when it starts. Without a selected style, the session-start hook gives them to the main conversation too. On one user's transcripts, steering alone took dashes in Claude's replies from 17.70 to 0.40 per 1,000 words. [docs/STEERING.md](docs/STEERING.md) explains what each way of instructing the model reaches, and what was measured.
+An output style does not reach subagents, so the plugin's hooks give every subagent the same instructions when it starts. When no style is selected, the session-start hook gives them to the main conversation too. On one user's transcripts, steering alone took dashes in Claude's replies from 17.70 to 0.40 per 1,000 words. [docs/STEERING.md](docs/STEERING.md) explains what each way of instructing the model reaches, and what was measured.
 
 ### 2. Automatic rewrites: after Claude writes
 
 Each value in `auto` turns on one kind of rewrite:
 
-- `commit`: when Claude runs `git commit`, the plugin rewrites the message before the command runs, usually in a few seconds. Trailers such as `Co-Authored-By:` stay as they are. If the rewrite takes longer than 90 seconds, the command runs as Claude wrote it.
-- `pr`: the same for the description passed to `gh pr create` or `gh pr edit`.
+- `commit`: when Claude runs `git commit`, the plugin rewrites the message before the command runs, which usually takes a few seconds. Trailers such as `Co-Authored-By:` stay as they are. If the rewrite takes longer than 90 seconds, the command runs with the message Claude wrote.
+- `pr`: the plugin does the same for the description passed to `gh pr create` or `gh pr edit`.
 - `markdown`: after Claude's turn ends, the plugin rewrites in the background the prose Claude added to markdown files.
 
-The markdown rewrite sends only the sentences and list items Claude added, never the rest of the file and never text you typed yourself. A change of fewer than 8 words is left as it is. It changes prose only and adds no facts, because the model that rewrites does not see the repository. When you send your next message, Claude is shown each passage that changed, old and new, so that Claude, who wrote the text with the repository open, can check that each still says what it meant.
+The markdown rewrite sends only the sentences and list items Claude added, never the rest of the file and never text you typed yourself. A change of fewer than 8 words is left alone. The rewrite changes prose only and adds no facts, because the model that rewrites does not see the repository. When you send your next message, Claude is shown each passage that changed, old and new, so it can check that each one still says what it meant, since Claude wrote the text with the repository open.
 
-Every automatic rewrite runs the same checks as `wr humanize`: a rewrite that changes code, alters a link or introduces a number or name found nowhere in the source is refused, and the text stays as Claude wrote it. Some files are never rewritten: files outside a git repository or ignored by git, changelogs, and anything under `vendor/`, `node_modules/`, `tests/`, `test/`, `fixtures/`, `testdata/` or `.claude/`. No hook runs in a scripted `claude -p` session, and chat replies are not rewritten, because no hook can change a reply before it is shown.
+Every automatic rewrite runs the same checks as `wr humanize`: a rewrite that changes code, alters a link, or introduces a number or name found nowhere in the source is refused, and the text stays as Claude wrote it. Some files are never rewritten: files outside a git repository or ignored by git, changelogs, and anything under `vendor/`, `node_modules/`, `tests/`, `test/`, `fixtures/`, `testdata/` or `.claude/`. No hook runs in a scripted `claude -p` session. Chat replies are not rewritten either, because no hook can change a reply before it is shown.
 
 ### 3. `wr humanize`: a checked rewrite of a finished document
 
@@ -137,13 +128,13 @@ For each file the command makes two model calls. The first rewrites the document
 
 The second call is the checker. It exists because the model that rewrites has not seen the code: on 2026-09-15, in one repository's docs, it added sentences that were false yet passed every string check, such as a claim that a report wrote each finding to a database when a separate script does that. The checker can read and search a copy of the repository's tracked files and nothing else. For every sentence the rewrite added or changed, it must cite the line of code that confirms or contradicts it, or say why the code cannot decide. wr checks each citation and puts back the paragraph or list item around any sentence the code contradicts or cannot confirm.
 
-The file is replaced only if the rewrite passes the string checks and the checker. A refused rewrite is saved beside the file as `SETUP.refused.md`, so you can copy the good parts by hand. A short file is rewritten in a few seconds, and the check took between one and seven minutes on the documents measured; `--no-check` skips it. [docs/USAGE.md](docs/USAGE.md) lists every option and every check.
+The file is replaced only if the rewrite passes the string checks and the checker. A refused rewrite is saved beside the file as `SETUP.refused.md`, so you can copy the good parts by hand. A short file is rewritten in a few seconds. The check took between one and seven minutes on the documents measured, and `--no-check` skips it. [docs/USAGE.md](docs/USAGE.md) lists every option and every check.
 
 ## Voices: a design system for how you read
 
-A voice is a written specification of how one person wants to read the text a model writes for them: who the reader is, which terms need explaining, in what order ideas come, how numbers and claims are worded, and how each kind of text (a README, a commit message, a status update) differs. It is built from evidence, the corrections you actually make, and every rule can be traced back to them.
+A voice is a written specification of how one person wants to read the text a model writes for them: who the reader is, which terms need explaining, in what order ideas come, how numbers and claims are worded, and how each kind of text (a README, a commit message, a status update) differs. It is built from the corrections you actually make, and every rule can be traced back to them.
 
-A voice can start as a single markdown file. Once it grows, it becomes a directory, a small design system for writing:
+A voice can start as a single markdown file. Once it grows, it becomes a directory that works as a small design system for writing:
 
 ```
 voice/technical-colleague/
@@ -153,7 +144,7 @@ voice/technical-colleague/
   decisions.md     where requests pulled in different directions, and what was chosen
 ```
 
-Each rule carries an identifier, so evidence and decisions point at it and a change touches only the rule it concerns. The tools keep it consistent:
+Each rule carries an identifier, so evidence and decisions can point at it and a change touches only the rule it concerns. These commands keep the voice consistent:
 
 | Command | What it does |
 |---|---|
@@ -162,11 +153,11 @@ Each rule carries an identifier, so evidence and decisions point at it and a cha
 | `wr voice build` | Writes the whole voice as one readable file |
 | `wr voice split FILE` | Turns a single-file voice into a directory |
 
-[`voice/technical-colleague/`](voice/technical-colleague/) is a complete example: a technical lead's voice with 141 rules in 22 files, from the reader and the register to mathematics, figures and data splits, with the owner's private details removed. [docs/VOICE_FORMAT.md](docs/VOICE_FORMAT.md) is the format reference. [docs/BUILDING_A_VOICE.md](docs/BUILDING_A_VOICE.md) explains how to build your own: collect your corrections, turn each into a rule a reader can check, admit a rule only when it recurs, and measure whether it changes anything. The scripts in `scripts/` mine your Claude Code conversations for those corrections.
+[`voice/technical-colleague/`](voice/technical-colleague/) is a complete example: a technical lead's voice with 141 rules in 22 files, covering everything from the reader and the register to mathematics, figures and data splits, with the owner's private details removed. [docs/VOICE_FORMAT.md](docs/VOICE_FORMAT.md) is the format reference. [docs/BUILDING_A_VOICE.md](docs/BUILDING_A_VOICE.md) explains how to build your own voice: collect your corrections, turn each into a rule a reader can check, admit a rule only when it recurs, and measure whether it changes anything. The scripts in `scripts/` search your Claude Code conversations for those corrections.
 
 ## Configuration
 
-Everything lives in one file on your machine, `~/.config/writing-register/config.toml`, never in a repository:
+All settings live in one file on your machine, `~/.config/writing-register/config.toml`, and never in a repository:
 
 | Setting | Values | Effect |
 |---|---|---|
@@ -174,7 +165,7 @@ Everything lives in one file on your machine, `~/.config/writing-register/config
 | `auto` | any of `"markdown"`, `"commit"`, `"pr"` | What the plugin rewrites by itself |
 | `metrics` | `true` (the default) or `false` | Whether each automatic rewrite leaves one line of numbers, which `wr report` totals |
 
-`wr voice` shows the active voice and where the choice came from. A mistake in the file, such as a misspelled setting, makes `wr` stop with a message naming it, and the plugin repeats it at the start of each session; the voice and the automatic rewrites stay off until it is fixed.
+`wr voice` shows the active voice and where the choice came from. A mistake in the file, such as a misspelled setting, makes `wr` stop with a message naming it, and the plugin repeats that message at the start of each session. The voice and the automatic rewrites stay off until the mistake is fixed.
 
 ## Updating and turning it off
 
@@ -184,9 +175,9 @@ claude plugin marketplace update writing-register
 claude plugin update writing-register@writing-register
 ```
 
-Claude Code does not update plugins from other people's marketplaces by itself, so run the last two commands when a new version is out; the update reaches the sessions you start afterwards.
+Claude Code does not update plugins from other people's marketplaces by itself, so run the last two commands when a new version is out. The update reaches the sessions you start afterwards.
 
-- To stop an automatic rewrite, remove it from `auto`. The hooks read the file each time, so no restart is needed.
+- To stop an automatic rewrite, remove it from `auto`. The hooks read the file each time they run, so no restart is needed.
 - To stop using a voice, set `voice = "none"` or remove the line.
 - To stop the steering, choose another output style in `/config`.
 - To turn everything off, run `claude plugin disable writing-register@writing-register` and restart Claude Code.
@@ -203,7 +194,7 @@ Claude Code does not update plugins from other people's marketplaces by itself, 
 | [`docs/`](docs/) | [USAGE](docs/USAGE.md), [STEERING](docs/STEERING.md), [VOICE_FORMAT](docs/VOICE_FORMAT.md), [BUILDING_A_VOICE](docs/BUILDING_A_VOICE.md) |
 | [`scrub/`](scrub/), [`scripts/scrub_check.py`](scripts/scrub_check.py) | The check that keeps confidential text out of this public repository |
 
-To work on the code itself, clone the repository and run `./install.sh`, which installs an editable copy; [CONTRIBUTING.md](CONTRIBUTING.md) has the rest.
+To work on the code itself, clone the repository and run `./install.sh`, which installs an editable copy. [CONTRIBUTING.md](CONTRIBUTING.md) covers the rest.
 
 ## License
 
