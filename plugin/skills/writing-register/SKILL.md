@@ -3,7 +3,7 @@ name: writing-register
 description: Use when writing or editing prose in markdown, such as docs, a README, a report, release notes or a card. Applies the humanizer skill, plus the user's own voice when they have turned one on, and rewrites a finished file with `wr humanize`.
 paths: "**/*.md"
 allowed-tools: Bash(wr:*)
-compatibility: Requires the wr command (uv tool install git+https://github.com/pablogiaccaglia/writing-register) and the claude CLI.
+compatibility: Uses the wr command and the claude CLI when they are installed; without wr it applies the humanizer skill alone.
 ---
 
 # Writing register

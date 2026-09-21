@@ -131,3 +131,15 @@ def test_the_end_of_turn_rewrite_has_time_for_several_documents():
     """A long document can take several minutes; the audit found no timeout."""
     stop = json.loads(HOOKS.read_text())["hooks"]["Stop"][0]["hooks"][0]
     assert stop["timeout"] >= 1800
+
+
+def test_the_skills_never_tell_an_agent_to_install_anything():
+    """Snyk, through skills.sh, 2026-09-21: an install command with a GitHub URL
+    in the skill read as "an unverifiable external dependency" (W012). Installing
+    is for a person reading the README, never an instruction to an agent."""
+    import re
+    install = r"git\+|uv tool install|pipx? install|npx |curl "
+    for skill in (SKILL, ROOT / "vendor" / "humanizer" / "SKILL.md"):
+        assert not re.search(install, skill.read_text(encoding="utf-8")), skill
+    # The vendored skill cites its sources with links; ours needs none.
+    assert not re.search(r"https?://", SKILL.read_text(encoding="utf-8"))
