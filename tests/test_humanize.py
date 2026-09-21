@@ -251,6 +251,43 @@ def test_with_sources_the_prompt_allows_background_taken_from_them():
     assert "not already in the document" not in p
 
 
+def test_code_the_rewrite_adds_must_be_copied_exactly_from_the_sources():
+    """2026-09-21: on the invented sample corpus a rewrite added `out/reports/`
+    (the source has "out/reports"), `stationlog/config.py` (inferred from an
+    import) and a log message paraphrased with a number filled in; the check
+    refused the whole rewrite. The prompt now says so before the model writes."""
+    from writing_register.humanize import build_prompt
+    prompt = build_prompt("# Doc\n", "skill", sources={"a.py": "x = 1\n"})
+    assert "character for character" in prompt and "plain words" in prompt
+
+
+def test_a_number_written_differently_but_equal_is_not_invented():
+    """2026-09-21: a correct sentence about readings "between -60 and 60" was
+    refused because the source says `-60.0, 60.0`."""
+    from writing_register.humanize import _invented_numbers
+    assert _invented_numbers("readings between -60 and 60 degrees", "VALID = -60.0, 60.0") == []
+    assert _invented_numbers("1000 rows", "a batch of 1,000 rows") == []
+    assert _invented_numbers("version 1.2", "version 1.2.0") == ["1.2"], "a version is not a number"
+    assert _invented_numbers("61 degrees", "60.0") == ["61"]
+
+
+def test_each_source_says_how_to_link_to_it_from_the_document(tmp_path):
+    """2026-09-21: the prompt allowed a link to a source "by its path relative
+    to the document" but labelled sources from the repository root, so from
+    docs/ the model linked `stationlog/push.py`, which the check refused."""
+    import subprocess
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "stationlog").mkdir()
+    (tmp_path / "stationlog" / "push.py").write_text("BATCH = 50\n")
+    doc = tmp_path / "docs" / "ARCH.md"
+    doc.write_text("# Arch\n\n`stationlog/push.py` posts the rows.\n")
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    s = Spawn(doc.read_text())
+    humanize(doc, spawn=s, root=tmp_path, check=False, write=False)
+    assert "# Source: stationlog/push.py" in s.prompt
+    assert "../stationlog/push.py" in s.prompt
+
+
 def test_background_from_a_source_passes_the_checks(tmp_path):
     doc = _repo(tmp_path)
     old = doc.read_text(encoding="utf-8")

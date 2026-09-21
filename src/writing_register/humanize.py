@@ -21,6 +21,7 @@ the code and the other docs. The checks widen to those files and no further.
 from __future__ import annotations
 
 import collections
+import decimal
 import ctypes
 import ctypes.util
 import os
@@ -49,10 +50,24 @@ SOURCE_SUFFIXES = {".md", ".py", ".js", ".mjs", ".ts", ".sh", ".toml", ".yaml",
 _NUMBER = re.compile(r"\d[\d.,]*")
 
 
+_THOUSANDS = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?")
+
+
+def _value(n: str) -> str:
+    """A number by its value, so 60 and 60.0, or 1000 and 1,000, are the same;
+    anything that is not a plain number (a version such as 1.2.0) stays as written
+    (2026-09-21: a correct "between -60 and 60" was refused against -60.0, 60.0)."""
+    plain = n.replace(",", "") if _THOUSANDS.fullmatch(n) else n
+    try:
+        return str(decimal.Decimal(plain).normalize())
+    except decimal.InvalidOperation:
+        return n
+
+
 def _invented_numbers(replacement: str, source: str) -> list[str]:
-    known = {n.rstrip(".,") for n in _NUMBER.findall(source)}
+    known = {_value(n.rstrip(".,")) for n in _NUMBER.findall(source)}
     return [n.rstrip(".,") for n in _NUMBER.findall(replacement)
-            if n.rstrip(".,") not in known]
+            if _value(n.rstrip(".,")) not in known]
 
 
 _FENCE = re.compile(r"^```.*?^```", re.M | re.S)
@@ -250,7 +265,8 @@ _COMPUTED = ("A number you work out from the document's own numbers counts as a 
 
 
 def build_prompt(document: str, skill: str, voice: str = "",
-                 sources: dict[str, str] | None = None, kind: str = "file") -> str:
+                 sources: dict[str, str] | None = None, kind: str = "file",
+                 links: dict[str, str] | None = None) -> str:
     mode = "file mode" if kind == "file" else "embedded mode"
     keep = ("Follow the humanizer skill below: its section How to work is the "
             "process, its numbered patterns are what to look for, and its section "
@@ -265,7 +281,7 @@ def build_prompt(document: str, skill: str, voice: str = "",
         "Reply with the final document only: no preamble, no summary, no list "
         "of changes, no code fence around it.",
     ]
-    return _assemble(parts, document, skill, voice, sources)
+    return _assemble(parts, document, skill, voice, sources, links)
 
 
 def _facts(sources: dict[str, str] | None) -> str:
@@ -279,14 +295,17 @@ def _facts(sources: dict[str, str] | None) -> str:
                 "fact from the sources at the end, which are the files the "
                 "document links to or names. Do not add a fact, name, number, "
                 "date or claim that neither the document nor the sources state, "
-                "and do not copy whole passages of a source. You may link to a "
+                "and do not copy whole passages of a source. Any code, path, "
+                "command, identifier or message you add in backticks must appear "
+                "character for character in the document or a source; when it does "
+                "not, describe it in plain words instead. You may link to a "
                 "source by its path relative to the document. " + _COMPUTED)
     return ("Change prose only. Do not add a fact, name, number, date or "
             "claim that is not already in the document. " + _COMPUTED)
 
 
 def _assemble(parts: list[str], document: str, skill: str, voice: str,
-              sources: dict[str, str] | None) -> str:
+              sources: dict[str, str] | None, links: dict[str, str] | None = None) -> str:
     """The instructions, then the voice, the skill, the document and its sources."""
     parts = list(parts)
     if voice:
@@ -295,7 +314,11 @@ def _assemble(parts: list[str], document: str, skill: str, voice: str,
     parts += ["", "# The humanizer skill", "", skill,
               "", "# The document", "", document]
     for rel, body in (sources or {}).items():
-        parts += ["", f"# Source: {rel}", "", body]
+        link = (links or {}).get(rel)
+        # The path to use in a link from the document, which is not the path
+        # from the repository root once the document sits in a folder.
+        how = f" (link to it from the document as {link})" if link else ""
+        parts += ["", f"# Source: {rel}{how}", "", body]
     return "\n".join(parts)
 
 
@@ -427,7 +450,9 @@ def humanize(path, *, spawn=None, voice: str = "", write: bool = True,
     source_texts = gather_sources(path, root, notes=notes) if root is not None and sources else {}
     spawn = spawn or Spawn()
     started = time.monotonic()
-    answer = spawn.run(build_prompt(old, load_skill(), voice, source_texts), model=model,
+    links = {rel: os.path.relpath((Path(root) / rel).resolve(), path.resolve().parent)
+             for rel in source_texts}
+    answer = spawn.run(build_prompt(old, load_skill(), voice, source_texts, links=links), model=model,
                        timeout=timeout)
     new = _unwrap(getattr(answer, "stdout", answer) or "")
     result = Result(path=path, text=new, seconds=time.monotonic() - started,
