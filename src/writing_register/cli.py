@@ -286,6 +286,8 @@ def build_parser() -> argparse.ArgumentParser:
     hk = sub.add_parser("hook", help="answer a Claude Code hook event (used by the "
                                      "plugin; reads the hook JSON on stdin)")
     hk.add_argument("event")
+    hk.add_argument("--part", type=int, default=None,
+                    help="send only this part of a long context (session-start, subagent-start)")
     sub.add_parser("report", help="what the automatic rewrites have had to change")
     st = sub.add_parser("style", help="write the voice as a Claude Code output style")
     st.add_argument("--enable", action="store_true",
@@ -363,7 +365,7 @@ def main(argv=None, out=None, spawn=None) -> int:
         return cmd_voice(args, out)
     if args.command == "hook":
         from .hooks import run
-        return run(args.event, sys.stdin, out, spawn=spawn)
+        return run(args.event, sys.stdin, out, spawn=spawn, part=args.part)
     return cmd_humanize(args, out, spawn=spawn)
 
 

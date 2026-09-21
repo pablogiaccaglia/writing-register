@@ -5,7 +5,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; exec \"$W\" hook session-start",
+            "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; exec \"$W\" hook session-start --part 1",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; exec \"$W\" hook session-start --part 2",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; exec \"$W\" hook session-start --part 3",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; exec \"$W\" hook session-start --part 4",
             "timeout": 15
           }
         ]
@@ -73,7 +88,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; exec \"$W\" hook subagent-start",
+            "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; exec \"$W\" hook subagent-start --part 1",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; exec \"$W\" hook subagent-start --part 2",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; exec \"$W\" hook subagent-start --part 3",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; exec \"$W\" hook subagent-start --part 4",
             "timeout": 15
           }
         ]

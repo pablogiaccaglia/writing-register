@@ -699,7 +699,67 @@ _AUTO_LABELS = (("commit", "commit messages"), ("pr", "PR descriptions"),
                 ("markdown", "markdown files"))
 
 
-def session_start(payload: dict, spawn=None) -> dict | None:
+# Claude Code shows the model at most about 10,000 characters of a hook's
+# additionalContext; above that it saves the text to a file and shows a 2KB
+# preview (largest delivered whole in the transcripts: 9.7KB; smallest persisted:
+# 9.9KB). The voice is longer, so the plugin registers the session and subagent
+# hooks PARTS times, and each registration sends one part (2026-09-21).
+PART_LIMIT = 9000
+PARTS = 4
+_REST = ("The rest of this context did not fit in what Claude Code delivers to a hook; "
+         "run `wr voice --core` to read the whole voice.")
+
+
+def _pieces(text: str, limit: int) -> list[str]:
+    """Sections, then paragraphs, then hard cuts, each at most `limit`."""
+    out = []
+    for section in re.split(r"\n\n(?=## )", text):
+        if len(section) <= limit:
+            out.append(section)
+            continue
+        for para in section.split("\n\n"):
+            while len(para) > limit:
+                cut = para.rfind(" ", 0, limit)
+                cut = cut if cut > 0 else limit
+                out.append(para[:cut])
+                para = para[cut:].lstrip()
+            out.append(para)
+    return [p for p in out if p.strip()]
+
+
+def split_parts(text: str, limit: int = PART_LIMIT) -> list[str]:
+    """The text in consecutive parts of at most `limit` characters, cut where a
+    section starts when possible, otherwise between paragraphs."""
+    parts, current = [], ""
+    for piece in _pieces(text, limit):
+        joined = f"{current}\n\n{piece}" if current else piece
+        if len(joined) <= limit:
+            current = joined
+        else:
+            parts.append(current)
+            current = piece
+    if current:
+        parts.append(current)
+    return parts
+
+
+def _part(text: str, part: int | None) -> str | None:
+    """Part `part` of `text`, labelled, or the whole text when no part is asked."""
+    if part is None:
+        return text
+    parts = split_parts(text)
+    if len(parts) > PARTS:
+        # Keep the label and the pointer within the limit of the last part.
+        head = split_parts("\n\n".join(parts[:PARTS - 1]))[:PARTS - 1]
+        tail = "\n\n".join(parts[PARTS - 1:])
+        parts = head + [tail[:PART_LIMIT - len(_REST) - 2] + "\n\n" + _REST]
+    if part > len(parts):
+        return None
+    return (f"(This context arrives in {len(parts)} parts, from {len(parts)} hooks; this is "
+            f"part {part} of {len(parts)}. Read all of them together.)\n\n{parts[part - 1]}")
+
+
+def session_start(payload: dict, spawn=None, part: int | None = None) -> dict | None:
     """Give Claude the voice core and say what wr rewrites automatically."""
     cfg, voice, problem = _settings()
     # Audit 2026-09-15: a mistake in the configuration used to switch every
@@ -750,13 +810,16 @@ def session_start(payload: dict, spawn=None) -> dict | None:
         parts.append(voice)
     if patterns_card:
         parts.append(patterns_card)
-    if not parts:
+    if part not in (None, 1):
+        notice = {}
+    text = _part("\n\n".join(parts), part) if parts else None
+    if not text:
         return notice or None
     return {**notice, "hookSpecificOutput": {"hookEventName": "SessionStart",
-                                             "additionalContext": "\n\n".join(parts)}}
+                                             "additionalContext": text}}
 
 
-def subagent_start(payload: dict, spawn=None) -> dict | None:
+def subagent_start(payload: dict, spawn=None, part: int | None = None) -> dict | None:
     """Give a subagent the same voice the session has.
 
     2026-09-16. The session-start hook does not reach a subagent, and the
@@ -780,14 +843,16 @@ def subagent_start(payload: dict, spawn=None) -> dict | None:
             "register there.")
     if voice.strip():
         head += " Follow the voice below; where it and the patterns disagree, the voice wins."
-    body = "\n\n".join(p for p in (head, voice.strip(), patterns_card) if p)
+    body = _part("\n\n".join(p for p in (head, voice.strip(), patterns_card) if p), part)
+    if not body:
+        return None
     return {"hookSpecificOutput": {"hookEventName": "SubagentStart", "additionalContext": body}}
 
 
 HANDLERS = {"session-start": session_start, "subagent-start": subagent_start, "pre-bash": pre_bash, "pre-edit": pre_edit, "post-edit": post_edit, "stop": stop, "prompt": prompt}
 
 
-def run(event: str, stdin, out, spawn=None) -> int:
+def run(event: str, stdin, out, spawn=None, part: int | None = None) -> int:
     """Answer one hook event. Always exits 0: a hook must never break Claude's work."""
     handler = HANDLERS.get(event)
     if handler is None or _scripted():
@@ -799,7 +864,7 @@ def run(event: str, stdin, out, spawn=None) -> int:
     if not isinstance(payload, dict):
         return 0
     try:
-        reply = handler(payload, spawn=spawn)
+        reply = handler(payload, spawn=spawn, **({"part": part} if part else {}))
     except Exception as e:
         # Audit 2026-09-15: a reviewer found payloads and files that made a
         # handler raise, so `wr hook` exited 1 with a traceback. The failure is
