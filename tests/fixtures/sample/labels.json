@@ -1,0 +1,369 @@
+{
+  "note": "An invented corpus: stationlog, a weather-station pipeline that exists only in tests/fixtures/sample/repo. set_a: sentences planted wrong in the rewrites, one per class of error a checker must catch, each with the line that contradicts it. set_c: sentences the rewrites added or changed that are true, each with the line that confirms it. over_cap: a rewrite with more wrong sentences than its document may put back, so the whole rewrite is refused. Every sentence a rewrite adds or changes is in one of these lists.",
+  "set_a": [
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "rewrite_sentence": "The summariser then sends the report rows to the dashboard.",
+      "corrected_sentence": "`stationlog/push.py` sends the report rows to the dashboard, not the summariser.",
+      "expected": "FALSE",
+      "corpus": "sample",
+      "class": "wrong-component",
+      "contradicted_by": {
+        "path": "stationlog/push.py",
+        "line": 24,
+        "span": "urllib.request.urlopen(request, timeout=30)"
+      }
+    },
+    {
+      "file": "README.md",
+      "rewrite_sentence": "Daily reports are removed after a year.",
+      "corrected_sentence": "Nothing removes daily reports; retention only looks at the archived readings.",
+      "expected": "FALSE",
+      "corpus": "sample",
+      "class": "unimplemented-lifecycle",
+      "contradicted_by": {
+        "path": "stationlog/retention.py",
+        "line": 18,
+        "span": "doomed = old_files(ARCHIVE, settings.keep_days)"
+      },
+      "negative": [
+        {
+          "pattern": "REPORT_DIR.*unlink",
+          "dir": "stationlog"
+        }
+      ]
+    },
+    {
+      "file": "docs/OPERATIONS.md",
+      "rewrite_sentence": "Every run of the prune command deletes the archived readings older than 400 days.",
+      "corrected_sentence": "The prune command deletes archived readings older than the configured number of days only when pruning is turned on.",
+      "expected": "FALSE",
+      "corpus": "sample",
+      "class": "guard-dropped",
+      "contradicted_by": {
+        "path": "stationlog/retention.py",
+        "line": 19,
+        "span": "if not settings.prune:"
+      }
+    },
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "rewrite_sentence": "It sends the rows in batches of 30.",
+      "corrected_sentence": "It sends the rows in batches of 50.",
+      "expected": "FALSE",
+      "corpus": "sample",
+      "class": "number-from-elsewhere",
+      "contradicted_by": {
+        "path": "stationlog/push.py",
+        "line": 7,
+        "span": "BATCH = 50"
+      }
+    },
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "rewrite_sentence": "Every reading in the file counts toward the report.",
+      "corrected_sentence": "Readings outside the valid range, which a sensor fault produced, are left out of the report.",
+      "expected": "FALSE",
+      "corpus": "sample",
+      "class": "through-a-helper",
+      "contradicted_by": {
+        "path": "stationlog/summary.py",
+        "line": 17,
+        "span": "if not VALID_MIN <= value <= VALID_MAX:"
+      }
+    },
+    {
+      "file": "docs/OPERATIONS.md",
+      "rewrite_sentence": "The collector never retries a station that does not answer.",
+      "corrected_sentence": "The collector retries a station that does not answer.",
+      "expected": "FALSE",
+      "corpus": "sample",
+      "class": "flipped-negation",
+      "contradicted_by": {
+        "path": "stationlog/collector.py",
+        "line": 13,
+        "span": "for attempt in range(retries):"
+      }
+    }
+  ],
+  "set_c": [
+    {
+      "file": "README.md",
+      "sentence": "The dashboard address can also come from the STATIONLOG_DASHBOARD_URL environment variable, which wins over the file.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/config.py",
+        "line": 27,
+        "span": "os.environ.get(\"STATIONLOG_DASHBOARD_URL\""
+      }
+    },
+    {
+      "file": "README.md",
+      "sentence": "It waits 600 seconds between two passes over the stations unless the settings say otherwise.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/collector.py",
+        "line": 42,
+        "span": "time.sleep(settings.poll_seconds)"
+      }
+    },
+    {
+      "file": "README.md",
+      "sentence": "The script stops at the first command that fails, so a report that could not be built is never sent.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "scripts/push.sh",
+        "line": 3,
+        "span": "set -e -u"
+      }
+    },
+    {
+      "file": "README.md",
+      "sentence": "Readings are appended to `out/readings.txt`, one line per station and poll.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/collector.py",
+        "line": 32,
+        "span": "out.write(f\"{station}"
+      }
+    },
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "sentence": "Each job is started by a subcommand of the command line module.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/cli.py",
+        "line": 15,
+        "span": "elif command == \"report\":"
+      }
+    },
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "sentence": "A station that does not answer is asked again, up to three times by default, with a longer wait after each failed attempt.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/collector.py",
+        "line": 18,
+        "span": "time.sleep(2 ** attempt)"
+      }
+    },
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "sentence": "The mean is rounded to one decimal place.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/summary.py",
+        "line": 27,
+        "span": "round(sum(v) / len(v), 1)"
+      }
+    },
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "sentence": "Each report is written to its own file, named after the day.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/summary.py",
+        "line": 34,
+        "span": "path = REPORT_DIR / f\"{day}.txt\""
+      }
+    },
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "sentence": "Nothing is sent when no dashboard address is set.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/push.py",
+        "line": 17,
+        "span": "if not settings.dashboard_url:"
+      }
+    },
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "sentence": "Each batch is one JSON request with a timeout of 30 seconds.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/push.py",
+        "line": 24,
+        "span": "urllib.request.urlopen(request, timeout=30)"
+      }
+    },
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "sentence": "When a station misses 5 polls in a row, the module prints one line to standard error.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/alerts.py",
+        "line": 25,
+        "span": "file=sys.stderr"
+      }
+    },
+    {
+      "file": "docs/ARCHITECTURE.md",
+      "sentence": "A poll the station answers resets its count to zero.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/alerts.py",
+        "line": 23,
+        "span": "self.misses[station] = 0"
+      }
+    },
+    {
+      "file": "docs/OPERATIONS.md",
+      "sentence": "The report step reads the whole readings file each time.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/cli.py",
+        "line": 16,
+        "span": "collector.READINGS.read_text().splitlines()"
+      }
+    },
+    {
+      "file": "docs/OPERATIONS.md",
+      "sentence": "`python -m stationlog.cli poll` runs the collector, which keeps polling until it is stopped.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/collector.py",
+        "line": 38,
+        "span": "while True:"
+      }
+    },
+    {
+      "file": "docs/OPERATIONS.md",
+      "sentence": "`python -m stationlog.cli prune` runs retention, which deletes nothing unless pruning is turned on.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/retention.py",
+        "line": 19,
+        "span": "if not settings.prune:"
+      }
+    },
+    {
+      "file": "docs/OPERATIONS.md",
+      "sentence": "Reports are written under `out/reports/`, one text file per day with a line per station.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/summary.py",
+        "line": 35,
+        "span": "path.write_text(\"\".join("
+      }
+    },
+    {
+      "file": "docs/OPERATIONS.md",
+      "sentence": "Pruning is turned on by setting STATIONLOG_PRUNE to 1 in the environment.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/config.py",
+        "line": 28,
+        "span": "os.environ.get(\"STATIONLOG_PRUNE\") == \"1\""
+      }
+    },
+    {
+      "file": "docs/OPERATIONS.md",
+      "sentence": "A file's age is measured from the time it was last modified.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/retention.py",
+        "line": 13,
+        "span": "p.stat().st_mtime < cutoff"
+      }
+    },
+    {
+      "file": "docs/OPERATIONS.md",
+      "sentence": "When the file is missing, stationlog starts with no stations at all.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/config.py",
+        "line": 22,
+        "span": "if path.exists() else {}"
+      }
+    },
+    {
+      "file": "docs/OPERATIONS.md",
+      "sentence": "The number of days to keep readings defaults to 400.",
+      "expected": "TRUE",
+      "corpus": "sample",
+      "confirmed_by": {
+        "path": "stationlog/config.py",
+        "line": 15,
+        "span": "keep_days: int = 400"
+      }
+    }
+  ],
+  "over_cap": {
+    "file": "docs/ALERTS.md",
+    "set_a": [
+      {
+        "file": "docs/ALERTS.md",
+        "rewrite_sentence": "It emails the operator as well.",
+        "corrected_sentence": "",
+        "expected": "FALSE",
+        "corpus": "sample",
+        "class": "over-cap",
+        "contradicted_by": {
+          "path": "stationlog/alerts.py",
+          "line": 25,
+          "span": "file=sys.stderr"
+        }
+      },
+      {
+        "file": "docs/ALERTS.md",
+        "rewrite_sentence": "The counts are saved to disk between runs.",
+        "corrected_sentence": "",
+        "expected": "FALSE",
+        "corpus": "sample",
+        "class": "over-cap",
+        "contradicted_by": {
+          "path": "stationlog/alerts.py",
+          "line": 12,
+          "span": "self.misses = {}"
+        }
+      },
+      {
+        "file": "docs/ALERTS.md",
+        "rewrite_sentence": "The limit is three missed polls.",
+        "corrected_sentence": "",
+        "expected": "FALSE",
+        "corpus": "sample",
+        "class": "over-cap",
+        "contradicted_by": {
+          "path": "stationlog/alerts.py",
+          "line": 4,
+          "span": "ALERT_AFTER = 5"
+        }
+      }
+    ],
+    "set_c": [
+      {
+        "file": "docs/ALERTS.md",
+        "sentence": "Its count lives in memory only.",
+        "expected": "TRUE",
+        "corpus": "sample",
+        "confirmed_by": {
+          "path": "stationlog/alerts.py",
+          "line": 12,
+          "span": "self.misses = {}"
+        }
+      }
+    ]
+  },
+  "ambiguous": []
+}

@@ -1,0 +1,4 @@
+# Findings of scrub_check.py that are known to be harmless, one per line:
+# path<TAB>kind, or path<TAB>digest-id for a digest hit. The path may be a glob.
+# A private-key header the export test writes into a file it expects to be left out.
+tests/test_audit_export.py	token

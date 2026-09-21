@@ -1,0 +1,44 @@
+name: tests
+
+# The suite on Linux. The atomic swap that puts a rewrite in place uses
+# renameat2 on Linux and renamex_np on macOS; macOS is exercised on the
+# maintainers' machines, and this job is where the Linux call is proven.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install the package with its test dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Swap two files atomically through renameat2
+        run: |
+          python - <<'PY'
+          import pathlib, tempfile
+          from writing_register.humanize import _swap
+          d = pathlib.Path(tempfile.mkdtemp())
+          a, b = d / "a", d / "b"
+          a.write_text("A")
+          b.write_text("B")
+          assert _swap(a, b), "renameat2(RENAME_EXCHANGE) did not run"
+          assert a.read_text() == "B" and b.read_text() == "A"
+          print("atomic swap works on this Linux runner")
+          PY
+      - name: Run the suite
+        run: python -m pytest
+      - name: Scan for text that should not be public
+        env:
+          WR_SCRUB_KEY: ${{ secrets.WR_SCRUB_KEY }}
+        run: python scripts/scrub_check.py scan --tree . --exclude private/

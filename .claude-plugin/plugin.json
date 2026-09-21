@@ -1,0 +1,14 @@
+{
+  "name": "writing-register",
+  "description": "Write and rewrite prose so it reads as a person wrote it: the humanizer skill, vendored whole, plus a voice, `wr humanize`, and hooks that rewrite commit messages, PR descriptions and markdown files by themselves when turned on.",
+  "version": "1.0.0",
+  "author": {
+    "name": "Pablo Giaccaglia",
+    "url": "https://github.com/pablogiaccaglia"
+  },
+  "license": "MIT",
+  "skills": [
+    "./vendor/humanizer",
+    "./plugin/skills/writing-register"
+  ]
+}

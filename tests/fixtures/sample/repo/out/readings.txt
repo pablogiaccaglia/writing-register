@@ -1,0 +1,3 @@
+north-ridge	14.2
+harbour-mast	11.8
+# IGNORED-READINGS-MARKER: this file is runtime data and must never reach a prompt

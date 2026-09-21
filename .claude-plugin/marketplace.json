@@ -1,0 +1,14 @@
+{
+  "name": "writing-register",
+  "owner": {
+    "name": "Pablo Giaccaglia"
+  },
+  "description": "Install writing-register as a Claude plugin.",
+  "plugins": [
+    {
+      "name": "writing-register",
+      "source": "./",
+      "description": "The humanizer skill, vendored whole, plus a voice, `wr humanize` and optional automatic rewrites."
+    }
+  ]
+}

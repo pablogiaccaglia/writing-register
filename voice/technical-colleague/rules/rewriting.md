@@ -1,0 +1,3 @@
+# When rewriting an existing text
+
+{#rewriting.move-not-delete refines=content.keep-every-fact} Move a detail to where it belongs and explain it rather than delete it; remove only filler, process history and incidental details that answer no question the reader has. Do not grow the text beyond what it was for. {#rewriting.answer-into-document} When a reader's question on a document exposes a gap, the answer is written into the document itself, not only into the reply. {#rewriting.update-every-copy refines=journey.current-state} When a definition or a method changes, every page that shows it is updated, so sibling pages never disagree.

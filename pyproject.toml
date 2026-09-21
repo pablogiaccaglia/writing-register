@@ -1,0 +1,23 @@
+[project]
+name = "writing-register"
+version = "1.0.0"
+description = "Rewrite prose so it reads as a person wrote it: the humanizer skill, a voice, and one checked model call per file."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "PyYAML>=6.0"]
+
+[project.scripts]
+wr = "writing_register.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "private/test*"]
+addopts = "-q"

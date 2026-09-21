@@ -1,0 +1,4 @@
+# The public repository, as GITHUB_REPOSITORY names it (owner/name) or just the owner.
+# On that repository a push or a pull request from one of its own branches fails
+# the scan when the digest key is missing.
+pablogiaccaglia/writing-register

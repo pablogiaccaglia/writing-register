@@ -1,0 +1,25 @@
+# The invented corpus: a small weather-station pipeline and four of its
+# documents before and after a rewrite. scripts/replay_check.py,
+# rejudge_replay.py and agreement.py read it with --corpus tests/fixtures/sample.
+name = "sample"
+# A directory of plain files, turned into a temporary git repository for a run.
+repo = "repo"
+pairs = "pairs"
+labels = "labels.json"
+
+[[documents]]
+name = "README"
+path = "README.md"
+
+[[documents]]
+name = "ARCHITECTURE"
+path = "docs/ARCHITECTURE.md"
+
+[[documents]]
+name = "OPERATIONS"
+path = "docs/OPERATIONS.md"
+
+# Built so the checker rejects more blocks than the document may put back.
+[[documents]]
+name = "ALERTS"
+path = "docs/ALERTS.md"
