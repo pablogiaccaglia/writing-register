@@ -1,6 +1,6 @@
 [project]
 name = "writing-register"
-version = "1.2.1"
+version = "1.2.2"
 description = "Make Claude Code write like a careful colleague: the humanizer patterns and your own voice, automatic rewrites, and a rewrite checked against the code."
 requires-python = ">=3.11"
 dependencies = []
