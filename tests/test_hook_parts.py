@@ -120,3 +120,27 @@ def test_the_example_voice_fits_in_the_registered_parts(tmp_path, monkeypatch):
     joined = "\n".join(t for t in texts if t)
     assert "wr voice --core" not in joined, "the example voice no longer fits; register more parts"
     assert "## When rewriting an existing text" in joined
+
+
+def test_a_long_note_about_rewritten_passages_fits_and_points_at_the_rest(tmp_path, monkeypatch):
+    """The note listing each passage the markdown rewrite changed reached 13.9KB
+    on 2026-09-21, and Claude saw a 2KB preview of it."""
+    monkeypatch.setenv(hooks.STATE_ENV, str(tmp_path / "state"))
+    d = hooks._state_dir("s", create=True)
+    lines = [f'  "old passage {i} ' + "a" * 300 + f'" -> "new passage {i} ' + "b" * 300 + '"' for i in range(40)]
+    (d / "done").write_text("wr rewrote 40 passages in /x/README.md:\n" + "\n".join(lines) + "\n")
+    text = _context(hooks.prompt({"session_id": "s"}))
+    assert len(text) <= hooks.PART_LIMIT + 400
+    assert "old passage 0 " in text, "the note starts as it always did"
+    full = [p for p in d.iterdir() if p.name.startswith("note-")]
+    assert len(full) == 1 and str(full[0]) in text
+    assert all(f"new passage {i} " in full[0].read_text() for i in range(40))
+
+
+def test_a_short_note_is_sent_as_it_is(tmp_path, monkeypatch):
+    monkeypatch.setenv(hooks.STATE_ENV, str(tmp_path / "state"))
+    d = hooks._state_dir("s", create=True)
+    (d / "done").write_text("wr kept /x/a.md as written\n")
+    text = _context(hooks.prompt({"session_id": "s"}))
+    assert text.endswith("wr kept /x/a.md as written\n")
+    assert not [p for p in d.iterdir() if p.name.startswith("note-")]

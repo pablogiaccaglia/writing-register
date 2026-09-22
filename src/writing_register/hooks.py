@@ -685,11 +685,30 @@ def prompt(payload: dict, spawn=None) -> dict | None:
         done = _take(d / "done")
     if not done.strip():
         return None
-    return {"hookSpecificOutput": {
-        "hookEventName": "UserPromptSubmit",
-        "additionalContext": ("Since your last message, wr ran in the background on the "
-                              "markdown files you wrote. Read a file again before "
-                              "editing it.\n" + done)}}
+    text = ("Since your last message, wr ran in the background on the markdown files you "
+            "wrote. Read a file again before editing it.\n" + done)
+    if len(text) > PART_LIMIT:
+        # Claude Code would show a 2KB preview of a longer note (13.9KB on
+        # 2026-09-21), so whole lines go in up to the limit and the complete
+        # note is kept in a file Claude can read.
+        for old in d.glob("note-*.txt"):
+            try:
+                if old.stat().st_mtime < time.time() - 7 * 86400:
+                    old.unlink()
+            except OSError:
+                pass
+        full = d / f"note-{time.time_ns()}.txt"
+        full.write_text(text, encoding="utf-8")
+        pointer = (f"The note is longer than a hook can deliver; the complete list, with "
+                   f"every passage old and new, is in {full}. Read it before your reply.")
+        kept, size = [], len(pointer) + 2
+        for line in text.splitlines():
+            if size + len(line) + 1 > PART_LIMIT:
+                break
+            kept.append(line)
+            size += len(line) + 1
+        text = "\n".join(kept) + "\n" + pointer + "\n"
+    return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": text}}
 
 
 # Session start. Moved here from the user's own settings on 2026-09-15, so the
