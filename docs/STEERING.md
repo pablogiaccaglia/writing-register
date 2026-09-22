@@ -120,7 +120,7 @@ call, with the voice winning where they disagree. Steering now does the same.
 Until 2026-09-16 it carried the voice alone, so a user with no voice was
 steered by nothing at all, and nobody was ever told the patterns.
 
-The skill is 28,728 characters, too much for every session and every subagent,
+The skill is 28,728 bytes (about 28,700 characters), too much for every session and every subagent,
 so what travels is a card of 1,115 characters built from the skill's own
 numbered headings (`src/writing_register/patterns.py`). It cannot drift,
 because it is read from the skill, and a test fails when the skill gains or

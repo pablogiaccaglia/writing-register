@@ -65,3 +65,21 @@ def test_the_command_prints_the_report(tmp_path, monkeypatch):
     out = io.StringIO()
     assert main(["report"], out=out) == 0
     assert "passage rewrites" in out.getvalue(), out.getvalue()
+
+
+def test_a_refused_commit_message_is_recorded_too(tmp_path, monkeypatch):
+    """Audit 2026-09-22: a refused message returned before it was recorded, so
+    the report never counted the messages wr could not rewrite."""
+    import re
+    from types import SimpleNamespace
+    from writing_register import hooks
+    cfg = tmp_path / "config.toml"
+    cfg.write_text('voice = "none"\n')
+    monkeypatch.setenv("WR_CONFIG", str(cfg))
+    seen = []
+    monkeypatch.setattr(metrics, "append", seen.append)
+    refused = SimpleNamespace(refused="a code span changed", changed=False, text="", seconds=1.0)
+    monkeypatch.setattr(hooks, "humanize_text", lambda *a, **k: refused)
+    m = re.match(r"(?P<body>.*)", "Fix the station poller so it retries")
+    hooks._rewrite_message(("commit", "commit message", object(), m), "", spawn=None)
+    assert [r["refused"] for r in seen] == ["a code span changed"]

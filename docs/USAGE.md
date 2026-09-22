@@ -2,7 +2,7 @@
 
 writing-register rewrites a file so its prose reads as a person wrote it, and `wr humanize` is the command that does the rewriting. The command sends the file to the `claude` command line tool together with the humanizer skill. The skill is a set of instructions that lists the patterns that make text read as machine-written and says how to fix each one. This repository vendors the skill, which means it keeps an unchanged copy of the upstream humanizer repository. A user can also turn on a voice, which is a markdown file that says how the result should sound, and the call then includes the voice as well. When the reply comes back, the command checks it with string comparisons and refuses any rewrite that breaks something those comparisons can detect, such as changed code or an invented number.
 
-The repository also ships a Claude Code plugin. While an agent writes markdown, the plugin loads the same skill, along with the voice when one is on. The plugin can also run the rewrite by itself on the commit messages, pull request descriptions and markdown files that Claude writes. The [README](../README.md) explains how to install both the command and the plugin.
+The repository also ships a Claude Code plugin. Its hooks give every session and every subagent the machine-writing patterns, and the voice when one is on; its two skills are there for an agent to invoke. The plugin can also run the rewrite by itself on the commit messages, pull request descriptions and markdown files that Claude writes. The [README](../README.md) explains how to install both the command and the plugin.
 
 ## Contents
 
@@ -25,7 +25,10 @@ wr humanize <paths...> [--voice NAME|FILE|none] [--full-voice] [--root DIR]
                        [--check-effort LEVEL] [--dry-run] [--model NAME] [--timeout SECONDS]
 wr humanize --text [--kind prose|commit|pr] [--voice NAME|FILE|none] < text
 wr voice [--core]
-wr hook <event>
+wr voice check|build|show|split ...      (see docs/VOICE_FORMAT.md)
+wr style [--enable|--print]
+wr report
+wr hook <event> [--part N]               (called by the plugin's hooks)
 ```
 
 The command handles the paths one at a time and makes two model calls for each file. The first call rewrites the file, and the second checks the rewrite against the repository's code. A short file takes a few seconds and a long one can take several minutes. For example, when the documentation of one service was rewritten with this command on 2026-09-14, each document took between 46 seconds and a little over 8 minutes.
@@ -60,14 +63,14 @@ No voice is set by default, so a teammate who installs writing-register gets onl
 voice = "technical-colleague"
 ```
 
-The command looks for the configuration file in three places, in order: `$WR_CONFIG`, then `$XDG_CONFIG_HOME/writing-register/config.toml`, then `~/.config/writing-register/config.toml`. The file has two settings:
+The command looks for the configuration file in three places, in order: `$WR_CONFIG`, then `$XDG_CONFIG_HOME/writing-register/config.toml`, then `~/.config/writing-register/config.toml`. The file has three settings:
 
 - `voice` is either the name of a voice shipped with wr, such as `technical-colleague`, or a path to a voice file or voice directory. A path may start with `~`, which is expanded, and a relative path is read from the configuration file's folder. `"none"`, an empty value and a missing file all mean no voice.
 - `auto` lists what the Claude Code plugin rewrites by itself, as described in [Automatic rewrites](#automatic-rewrites).
 
 The command checks the configuration before it makes any model call. The check is strict, so a typo such as `vocie` cannot turn the voice off without anyone noticing. The run stops with exit code 2 and a message naming the problem if the file is not valid TOML or contains any of these: an unknown setting, a voice name that does not exist, a voice file that is missing, or an `auto` value the plugin does not know.
 
-To see which voice is active and where that choice came from, run `wr voice`. To see the part of the voice the model receives, run `wr voice --core`, which prints nothing when no voice is set. The plugin ships a writing-register skill that an agent loads while writing markdown. That skill runs `wr voice --core` before the agent starts, so the agent writes in the same voice the command uses.
+To see which voice is active and where that choice came from, run `wr voice`. To see the part of the voice the model receives, run `wr voice --core`, which prints nothing when no voice is set. The plugin ships a writing-register skill for an agent writing markdown. That skill tells the agent to run `wr voice --core` before it starts, so the agent writes in the same voice the command uses.
 
 ## What the call gets
 
@@ -80,7 +83,7 @@ Each model call gets a single prompt made of four parts, in this order:
 
 A document's sources are the local files it links to and any files it names by a path in inline code. The model gets them so it can explain what the document expects a new reader to know already, and it may take that background from those files and from nowhere else.
 
-The command limits what it sends in three ways. It sends only text files, so a named `.env` never ends up in the prompt. It never sends a file that git ignores, because in a working checkout those files hold runtime data; in a service that records meetings, for example, that data can include real transcripts and what the service remembers about people. Outside a git repository, the text-file rule is the only filter. Finally, each source is cut off at 40,000 characters, and all the sources together at 160,000.
+The command limits what it sends in three ways. It sends only files of common text types (`.md`, `.py`, `.js`, `.mjs`, `.ts`, `.sh`, `.toml`, `.yaml`, `.yml`, `.json`, `.txt`, `.html`, `.css`), so a named `.env` never ends up in the prompt, and a path named in inline code counts only when it contains a slash. It never sends a file that git ignores, because in a working checkout those files hold runtime data; it can include real user data. Outside a git repository, the text-file rule is the only filter. Finally, each source is cut off at 40,000 characters, and all the sources together at 160,000.
 
 ## What is checked
 
@@ -167,10 +170,10 @@ The command prints one line for each file, and each line names the voice that wa
 docs/ARCHITECTURE.md: rewritten in 84s, checked in 131s (two model calls, voice technical-colleague (config), 3 sources): 1 sentence put back. Read the diff: git diff docs/ARCHITECTURE.md
   put back (FALSE) "The summariser then sends the report rows to the dashboard.": stationlog/push.py:24 `urllib.request.urlopen(request, timeout=30)`
 docs/OPS.md: refused after 312s (one model call, no voice, 5 sources), file unchanged: a code block changed, and the rewrite may change prose only
-  the rewrite is kept in docs/OPS.refused.md to read or use
+  the rewrite is kept in docs/OPS.refused.md to read or use; it has not passed the check against the code, so read it against the code before using any of it
 ```
 
-Each sentence that was put back gets its own indented line with the checker's verdict and its citation or reason. With `--dry-run`, the command prints the diff between the document and the result under each line and saves nothing. The line for a rewrite refused by the check says that the kept copy has not passed the check, and the line for a rewrite that could not be checked says why.
+Each sentence that was put back gets its own indented line with the checker's verdict and its citation or reason. With `--dry-run`, the command prints the diff between the document and the result under each line and saves nothing. The line for every kept copy says that it has not passed the check against the code, and the line for a rewrite that could not be checked says why.
 
 Without `--dry-run`, a refused rewrite leaves the original file as it was and is saved next to it, as `OPS.refused.md` is in the example. A refused rewrite usually goes wrong in only one place, so most of it can still be used. To recover it, read the reason at the end of the line, compare `OPS.refused.md` with `OPS.md`, copy the good parts over by hand, and then delete the refused file.
 
@@ -218,14 +221,14 @@ The automatic markdown rewrite only ever touches text that Claude wrote. Right b
 
 When the turn ends, the recorded text is rewritten in passages. A passage is a run of recorded sentences inside one paragraph, or of recorded items inside one list, that holds at least 8 words, not counting bullets and item numbers. Tables, fenced and indented code, headings, quotes, HTML, rules and front matter are never sent. The threshold of 8 words comes from 5,292 real edits to markdown files in Claude sessions, counted on 2026-09-15. Edits that added 7 words or fewer were small changes such as a renumbered step, a table cell or a single word, while edits that added 8 or more were new content.
 
-The model gets the whole document so it can read the passages in context, with each passage marked by a token that changes on every call. It sends back only those passages, and they are put back where they were. The rest of the file, including the rest of any paragraph or list a passage sits in, never passes through the model, and every byte outside the passages stays as it was, line endings included. Each passage is checked on its own and is refused unless it meets all of these conditions:
+The model gets the whole document so it can read the passages in context, with each passage marked by a token that changes on every call. It sends back only those passages, and they are put back where they were. The rest of the file, including the rest of any paragraph or list a passage sits in, never passes through the model, and every byte outside the passages stays as it was, line endings included. Each passage is checked on its own, and if any passage fails, the whole rewrite of that file is refused. A passage fails unless it meets all of these conditions:
 
 - it does not come back empty
 - it keeps its shape: sentences stay in their paragraph and keep the punctuation that separates them from the next sentence, a list passage keeps its number of items and each item's indentation and marker, and no heading, code, quote or table appears in it
 - it keeps at least a quarter of its length, the same floor a commit message gets
 - it passes the usual checks, with the rest of the document counting as a source
 
-A rewritten passage is done: its text is no longer recorded, so a later turn does not rewrite it again. A passage refused on its content is done too. A reply that does not follow the format is refused, and its passages stay recorded for up to 3 attempts, one after each later turn that touches the file. Recorded text that is no longer in the file is forgotten, and so is everything recorded for a file that was deleted or skipped, for example because its repository did not yet ignore `*.refused.md`. The rewrite runs in the background, so it can finish after Claude has already edited the file again; in that case it removes only what it handled, and nothing the newer edit recorded is lost.
+A rewritten passage is done: its text is no longer recorded, so a later turn does not rewrite it again. When the rewrite of a file is refused on its content, every passage sent with it is done too, the good ones included, and stays as Claude wrote it. A reply that does not follow the format is refused, and its passages stay recorded for up to 3 attempts, one after each later turn that touches the file. Recorded text that is no longer in the file is forgotten, and so is everything recorded for a file that was deleted or skipped, for example because its repository did not yet ignore `*.refused.md`. The rewrite runs in the background, so it can finish after Claude has already edited the file again; in that case it removes only what it handled, and nothing the newer edit recorded is lost.
 
 This rewrite changes prose only. Its prompt tells the model not to add a fact, and it gets no sources, because the model does not see the repository and Claude wrote these sentences minutes earlier with the repository open. It is not checked against the code either, because that check takes minutes per file and would run after every turn. Instead, the note Claude gets with your next message lists each passage the rewrite changed, old and new, up to 20 of them, with each side cut around its first difference when it is long, and asks Claude to check that each still says what it meant.
 
@@ -276,7 +279,7 @@ A style reaches the main conversation and a fork, never an ordinary subagent, wh
 
 ## What the rewrites have had to change
 
-Each automatic rewrite leaves one line in `~/.cache/writing-register/auto/metrics/`, naming the file, how many words it sent to the model, how many came back changed, how long it took and whether it was refused. `wr report` reads them:
+Each automatic rewrite leaves one line in `~/.cache/writing-register/auto/metrics/`, saying how many words it sent to the model, how many words were in the passages that came back changed (for a commit message or a pull request description, the whole rewritten text), how long it took and whether it was refused; a markdown rewrite also names the file and the number of passages. `wr report` reads them:
 
 ```
 $ wr report
@@ -302,7 +305,7 @@ A voice file is a markdown file that tells the model how the text should read. T
 
 A voice can be long, because the model gets only its core unless `--full-voice` is given. The core is everything above a line that reads `<!-- wr:end-of-core -->`, and a file without that line is all core. Below the line go the evidence, examples and reasoning that the people who maintain the voice need, along with any passage that explains a rule rather than stating it. Keep the core short enough that the model still gives weight to the skill's own patterns.
 
-To share a new voice through the clone, put it in `voice/<name>.md`. You can also keep it anywhere on your machine and point the configuration at its path.
+Keep a voice of your own anywhere on your machine and point the configuration at its path. A voice added to a clone's `voice/` folder is found by name only by a `wr` installed from that clone.
 
 ### When a voice outgrows one file
 

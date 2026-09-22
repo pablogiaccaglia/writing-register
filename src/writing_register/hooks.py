@@ -244,9 +244,9 @@ def _rewrite_message(candidate, voice: str, spawn):
                                timeout=HOOK_TIMEOUT)
     except (SpawnFailed, SetupError) as e:
         return m, None, f"wr left the {label} as written: {e}"
+    _record_message(kind, text, result)
     if result.refused:
         return m, None, f"wr kept the {label} as written: {result.refused}"
-    _record_message(kind, text, result)
     if not result.changed:
         return m, None, ""
     new = result.text.rstrip("\n")

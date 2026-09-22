@@ -1,6 +1,6 @@
 {
   "name": "writing-register",
-  "description": "Make Claude Code write like a careful colleague. The humanizer patterns, and your own voice if you set one, steer every session and subagent; hooks rewrite commit messages, PR descriptions and markdown by themselves; wr humanize rewrites a document and checks each changed sentence against the code. The hooks need the wr command; the README explains how to install it.",
+  "description": "Make Claude Code write like a careful colleague. The humanizer patterns, and your own voice if you set one, steer every session and subagent; hooks can rewrite commit messages, PR descriptions and markdown by themselves once you turn that on; wr humanize rewrites a document and checks each changed sentence against the code. The hooks need the wr command; the README explains how to install it.",
   "version": "1.2.2",
   "author": {
     "name": "Pablo Giaccaglia",

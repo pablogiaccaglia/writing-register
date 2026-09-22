@@ -11,7 +11,7 @@ cd writing-register
 .venv/bin/python -m pytest
 ```
 
-The test suite runs without network access and without a model. Tests that really call `claude` are skipped unless `WR_LIVE=1` is set.
+The test suite runs without a model. The packaging test builds a wheel, which needs the package index, and skips itself when the index is unreachable. Tests that really call `claude` are skipped unless `WR_LIVE=1` is set.
 
 ## What a change needs
 

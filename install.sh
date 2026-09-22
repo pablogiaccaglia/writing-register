@@ -38,7 +38,7 @@ echo "   Then restart Claude Code."
 echo
 echo "3. Optional: a voice and the automatic rewrites"
 echo "   Both go in ~/.config/writing-register/config.toml."
-echo "   See \"Setting it up\" in $HERE/README.md."
+echo "   See \"Quick start\" in $HERE/README.md."
 echo
 echo "4. In each repository you use it in"
 echo "   Add *.refused.md to .gitignore, then from the repository root:"

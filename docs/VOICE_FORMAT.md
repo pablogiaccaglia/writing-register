@@ -133,7 +133,7 @@ Each check exists because the failure it catches happened or would be silent.
 | error | Every evidence entry carries a date, and every decision a `Decided:` date | Provenance nobody can place in time |
 | error | With `evidence = "required"`, every rule is named by an evidence entry or a decision | A rule added with nothing behind it |
 | error | No decision retires a rule that still exists | A rule both kept and removed |
-| error | The generated view is current | Someone editing the wrong copy |
+| error | The generated view, when it exists, is current (`wr voice build --check` also fails when it is missing) | Someone editing the wrong copy |
 | warning | A rule contains a date or "measured on" | A measurement travelling in every session instead of sitting in the evidence |
 | warning | A decision is older than the newest evidence for its rules | A decision nobody revisited after new evidence arrived |
 | advisory | Two rules share a phrase of three content words (`--overlaps` only) | Two rules that may say the same thing |
@@ -156,9 +156,9 @@ A target is a voice directory, a voice name, or nothing for the active voice.
 The `voice` setting in `~/.config/writing-register/config.toml` names the voice:
 
 ```toml
-voice = "technical-colleague"          # a voice in this clone's voice/ folder
+voice = "technical-colleague"          # a voice shipped with wr
 # voice = "~/voices/station-team"      # a directory anywhere, by path
 # voice = "~/voices/station-team.md"   # a single file, by path
 ```
 
-A value holding a slash or ending in `.md` is a path, and a relative path is read from the folder that holds the configuration file. Any other value is a name looked up in the clone's `voice/` folder, where a directory wins over a file of the same name, because that file is the directory's generated view. Without the setting, or with `voice = "none"`, only the humanizer skill applies.
+A value holding a slash or ending in `.md` is a path, and a relative path is read from the folder that holds the configuration file. Any other value is the name of a voice shipped with wr, in the clone or inside the installed package, where a directory wins over a file of the same name, because that file is the directory's generated view. Without the setting, or with `voice = "none"`, only the humanizer skill applies.

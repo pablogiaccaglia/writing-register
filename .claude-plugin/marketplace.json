@@ -8,7 +8,7 @@
     {
       "name": "writing-register",
       "source": "./",
-      "description": "Steer Claude Code's prose with the humanizer patterns and your own voice, rewrite commit messages, PR descriptions and markdown automatically, and check rewrites against the code."
+      "description": "Steer Claude Code's prose with the humanizer patterns and your own voice, rewrite commit messages, PR descriptions and markdown automatically when you turn it on, and check a rewritten document against the code with wr humanize."
     }
   ]
 }
