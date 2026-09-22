@@ -120,7 +120,7 @@ def test_a_style_chosen_in_config_is_read_from_the_project_settings(tmp_path, mo
 
 
 def test_with_the_plugin_style_the_hook_sends_the_voice_but_not_the_patterns_again(tmp_path, monkeypatch):
-    for chosen in (f"writing-register:{style.PLAIN}", style.PLAIN):
+    for chosen in (f"writing-register:{style.PLAIN}",):
         case = tmp_path / chosen.replace(":", "_")
         case.mkdir()
         project = _selected_in_project(case, monkeypatch, chosen)
@@ -134,3 +134,22 @@ def test_the_local_project_setting_wins_over_the_user_setting(tmp_path, monkeypa
     (tmp_path / "claude" / "settings.json").write_text(json.dumps({"outputStyle": style.NAME}))
     assert style.selected(project) == "Explanatory"
     assert "# Voice: Tester" in _session_text(project)
+
+
+def test_the_project_folder_claude_code_reports_wins_over_the_hook_cwd(tmp_path, monkeypatch):
+    project = _selected_in_project(tmp_path, monkeypatch, f"writing-register:{style.PLAIN}")
+    sub = project / "sub"
+    sub.mkdir()
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(project))
+    assert style.selected(sub) == f"writing-register:{style.PLAIN}"
+
+
+def test_a_user_style_that_happens_to_be_called_human_prose_is_not_the_plugin_s(tmp_path, monkeypatch):
+    project = _selected_in_project(tmp_path, monkeypatch, style.PLAIN)
+    assert not style.plain_active(project)
+
+
+def test_with_the_plugin_style_the_intro_does_not_point_at_missing_patterns(tmp_path, monkeypatch):
+    project = _selected_in_project(tmp_path, monkeypatch, f"writing-register:{style.PLAIN}")
+    text = _session_text(project)
+    assert "# Voice: Tester" in text and "patterns after it" not in text

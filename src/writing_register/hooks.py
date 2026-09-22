@@ -698,9 +698,13 @@ def prompt(payload: dict, spawn=None) -> dict | None:
             except OSError:
                 pass
         full = d / f"note-{time.time_ns()}.txt"
-        full.write_text(text, encoding="utf-8")
-        pointer = (f"The note is longer than a hook can deliver; the complete list, with "
-                   f"every passage old and new, is in {full}. Read it before your reply.")
+        try:
+            full.write_text(text, encoding="utf-8")
+            pointer = (f"The note is longer than a hook can deliver; the complete list, with "
+                       f"every passage old and new, is in {full}. Read it before your reply.")
+        except OSError:
+            pointer = ("The note is longer than a hook can deliver and could not be saved; "
+                       "compare each file named above with `git diff`.")
         kept, size = [], len(pointer) + 2
         for line in text.splitlines():
             if size + len(line) + 1 > PART_LIMIT:
@@ -725,8 +729,9 @@ _AUTO_LABELS = (("commit", "commit messages"), ("pr", "PR descriptions"),
 # hooks PARTS times, and each registration sends one part (2026-09-21).
 PART_LIMIT = 9000
 PARTS = 4
-_REST = ("The rest of this context did not fit in what Claude Code delivers to a hook; "
-         "run `wr voice --core` to read the whole voice.")
+_REST = ("The rest of this context did not fit in what Claude Code delivers to a hook. "
+         "Run `wr voice --core` to read the whole voice; the machine-writing patterns are "
+         "in the humanizer skill.")
 
 
 def _pieces(text: str, limit: int) -> list[str]:
@@ -774,6 +779,8 @@ def _part(text: str, part: int | None) -> str | None:
         parts = head + [tail[:PART_LIMIT - len(_REST) - 2] + "\n\n" + _REST]
     if part > len(parts):
         return None
+    if len(parts) == 1:
+        return parts[0]
     return (f"(This context arrives in {len(parts)} parts, from {len(parts)} hooks; this is "
             f"part {part} of {len(parts)}. Read all of them together.)\n\n{parts[part - 1]}")
 
@@ -785,7 +792,8 @@ def session_start(payload: dict, spawn=None, part: int | None = None) -> dict | 
     # automatic rewrite and the voice off without telling anyone.
     notice = {}
     if cfg is None:
-        if not problem:
+        # Every registered part runs this; only the first reports a problem.
+        if not problem or part not in (None, 1):
             return None
         head = "wr: " if str(config_path()) in problem else f"wr cannot use {config_path()}: "
         return {"systemMessage": f"{head}{problem}. The voice and the automatic "
@@ -799,20 +807,23 @@ def session_start(payload: dict, spawn=None, part: int | None = None) -> dict | 
     from .patterns import card
     from .style import active as style_active, plain_active
     cwd = payload.get("cwd")
+    patterns_in_style = False
     if style_active(cwd):
         voice = ""
         patterns_card = ""
     elif plain_active(cwd):
         patterns_card = ""
+        patterns_in_style = True
     else:
         patterns_card = card()
     if voice.strip():
+        where = ("The machine-writing patterns to avoid are in the output style" if patterns_in_style
+                 else "The patterns after it are the machine-writing patterns to avoid")
         parts.append(
             "Write all prose in this session in the voice below: replies in this chat, "
             "documentation, READMEs, reports, cards, commit messages, pull request "
-            "descriptions and team messages. The patterns after it are the machine-writing "
-            "patterns to avoid; where they and the voice disagree, the voice wins. This "
-            f"voice is turned on in {config_path()}.")
+            f"descriptions and team messages. {where}; where they and the voice disagree, "
+            f"the voice wins. This voice is turned on in {config_path()}.")
     elif patterns_card:
         parts.append(
             "Write all prose in this session, in this chat and in the files you write, so "
@@ -888,7 +899,8 @@ def run(event: str, stdin, out, spawn=None, part: int | None = None) -> int:
         # Audit 2026-09-15: a reviewer found payloads and files that made a
         # handler raise, so `wr hook` exited 1 with a traceback. The failure is
         # shown to the user instead of being swallowed.
-        reply = {"systemMessage": f"wr hook {event} failed: {type(e).__name__}: {e}"}
+        reply = ({"systemMessage": f"wr hook {event} failed: {type(e).__name__}: {e}"}
+                 if part in (None, 1) else None)
     if reply:
         out.write(json.dumps(reply, ensure_ascii=False) + "\n")
     return 0

@@ -23,8 +23,14 @@ REPO = Path(__file__).resolve().parent.parent
 pytestmark = pytest.mark.skipif(os.environ.get("WR_OFFLINE") == "1", reason="needs the network to build a wheel")
 
 
+_OFFLINE = ("Could not find a version", "No matching distribution", "Failed to establish",
+            "Temporary failure in name resolution", "Network is unreachable")
+
+
 def _run(cmd, **kw):
     result = subprocess.run(cmd, capture_output=True, text=True, **kw)
+    if result.returncode != 0 and any(s in result.stderr for s in _OFFLINE):
+        pytest.skip("building a wheel needs the package index, which is unreachable")
     assert result.returncode == 0, f"{cmd}\n{result.stdout}\n{result.stderr}"
     return result.stdout
 
@@ -76,3 +82,21 @@ def test_the_wr_command_is_installed(installed, tmp_path):
     env["WR_CONFIG"] = str(tmp_path / "config.toml")
     out = _run([str(installed / "bin" / "wr"), "voice", "--core"], cwd=tmp_path, env=env)
     assert out.startswith("# Voice: Technical colleague")
+
+
+def test_a_file_git_does_not_track_never_reaches_the_wheel(tmp_path):
+    """Audit 2026-09-22: the build copied whatever sat in voice/ on disk, so a
+    voice being drafted in a clone would ship in a local build."""
+    import zipfile
+    source = tmp_path / "writing-register"
+    shutil.copytree(REPO, source, ignore=shutil.ignore_patterns(
+        ".git", ".venv", "build", "*.egg-info", "__pycache__", ".pytest_cache", "private"))
+    for cmd in (["git", "init", "-q"], ["git", "add", "-A"]):
+        subprocess.run(cmd, cwd=source, check=True, capture_output=True)
+    (source / "voice" / "draft.md").write_text("# Voice: a private draft\n")
+    wheels = tmp_path / "wheels"
+    _run([sys.executable, "-m", "pip", "wheel", "--no-deps", "-q", "-w", str(wheels), str(source)])
+    [wheel] = wheels.glob("writing_register-*.whl")
+    names = zipfile.ZipFile(wheel).namelist()
+    assert any(n.endswith("_data/voice/technical-colleague/voice.toml") for n in names)
+    assert not any(n.endswith("draft.md") for n in names)

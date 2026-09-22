@@ -16,6 +16,13 @@ from .humanize import DEFAULT_TIMEOUT, SetupError, humanize, humanize_text
 from .spawn import SpawnFailed
 
 
+
+def _positive(value: str) -> int:
+    n = int(value)
+    if n < 1:
+        raise argparse.ArgumentTypeError("must be 1 or more")
+    return n
+
 def active_voice(flag: str | None) -> tuple[Path | None, str]:
     """The voice file to use and where that choice came from.
 
@@ -286,7 +293,7 @@ def build_parser() -> argparse.ArgumentParser:
     hk = sub.add_parser("hook", help="answer a Claude Code hook event (used by the "
                                      "plugin; reads the hook JSON on stdin)")
     hk.add_argument("event")
-    hk.add_argument("--part", type=int, default=None,
+    hk.add_argument("--part", type=_positive, default=None,
                     help="send only this part of a long context (session-start, subagent-start)")
     sub.add_parser("report", help="what the automatic rewrites have had to change")
     st = sub.add_parser("style", help="write the voice as a Claude Code output style")

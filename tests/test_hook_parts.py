@@ -111,7 +111,7 @@ def test_the_plugin_registers_every_part_for_both_events():
     for event, name in (("SessionStart", "session-start"), ("SubagentStart", "subagent-start")):
         commands = [h["command"] for group in registered[event] for h in group["hooks"]]
         for k in range(1, hooks.PARTS + 1):
-            assert any(c.endswith(f"hook {name} --part {k}") for c in commands), (event, k)
+            assert any(f"hook {name} --part {k}" in c for c in commands), (event, k)
 
 
 def test_the_example_voice_fits_in_the_registered_parts(tmp_path, monkeypatch):
@@ -144,3 +144,76 @@ def test_a_short_note_is_sent_as_it_is(tmp_path, monkeypatch):
     text = _context(hooks.prompt({"session_id": "s"}))
     assert text.endswith("wr kept /x/a.md as written\n")
     assert not [p for p in d.iterdir() if p.name.startswith("note-")]
+
+
+# Audit of 2026-09-22.
+
+def test_the_plugin_falls_back_when_wr_is_older_than_the_part_option(tmp_path):
+    """The plugin updates from its marketplace, wr separately. An older wr
+    rejects --part (argparse exits 2), which left sessions with no voice."""
+    import os
+    import stat
+    import subprocess
+    fake = tmp_path / "wr"
+    fake.write_text('#!/bin/sh\ncase "$*" in *--part*) echo "wr: error: unrecognized arguments" >&2; exit 2;; esac\n'
+                    'cat >/dev/null; echo \'{"old": "whole"}\'\n')
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    registered = json.loads((REPO / "hooks" / "hooks.json").read_text())["hooks"]
+    env = {**os.environ, "PATH": f"{tmp_path}:{os.environ['PATH']}"}
+    for event in ("SessionStart", "SubagentStart"):
+        outs = []
+        for h in registered[event][0]["hooks"]:
+            r = subprocess.run(["sh", "-c", h["command"]], input='{"session_id": "s"}', capture_output=True,
+                               text=True, env=env)
+            assert r.returncode == 0, (event, h["command"], r.stderr)
+            outs.append(r.stdout.strip())
+        assert outs.count('{"old": "whole"}') == 1, (event, outs)
+        assert all(o in ("", '{"old": "whole"}') for o in outs)
+
+
+def test_a_configuration_error_is_reported_once_not_once_per_part(tmp_path, monkeypatch):
+    cfg = tmp_path / "config.toml"
+    cfg.write_text('vocie = "x"\n')
+    monkeypatch.setenv("WR_CONFIG", str(cfg))
+    replies = [hooks.session_start({"session_id": "s"}, part=k) for k in range(1, hooks.PARTS + 1)]
+    assert sum(1 for r in replies if r and r.get("systemMessage")) == 1
+
+
+def test_a_failing_hook_reports_once_across_parts(monkeypatch):
+    def boom(payload, spawn=None, part=None):
+        raise RuntimeError("x")
+    monkeypatch.setitem(hooks.HANDLERS, "session-start", boom)
+    outs = []
+    for k in range(1, hooks.PARTS + 1):
+        out = io.StringIO()
+        hooks.run("session-start", io.StringIO('{"session_id": "s"}'), out, part=k)
+        outs.append(out.getvalue())
+    assert sum(1 for o in outs if o) == 1
+
+
+def test_one_part_needs_no_label(tmp_path, monkeypatch):
+    voice = tmp_path / "small.md"
+    voice.write_text("# Voice: Small\n\n- No em dashes.\n")
+    _config(tmp_path, monkeypatch, voice)
+    text = _context(hooks.subagent_start({"session_id": "s"}, part=1))
+    assert "arrives in" not in text
+
+
+def test_the_overflow_pointer_does_not_promise_the_patterns(tmp_path, monkeypatch):
+    _config(tmp_path, monkeypatch, _big_voice(tmp_path, sections=60))
+    last = _context(hooks.subagent_start({"session_id": "s"}, part=hooks.PARTS))
+    assert "wr voice --core" in last and "humanizer" in last
+
+
+def test_a_note_that_cannot_be_saved_is_still_delivered(tmp_path, monkeypatch):
+    monkeypatch.setenv(hooks.STATE_ENV, str(tmp_path / "state"))
+    d = hooks._state_dir("s", create=True)
+    (d / "done").write_text("wr rewrote 40 passages in /x/README.md:\n" + "\n".join("  " + "z" * 700 for _ in range(40)))
+    real = hooks.Path.write_text
+    def fail(self, *a, **k):
+        if self.name.startswith("note-"):
+            raise OSError("disk full")
+        return real(self, *a, **k)
+    monkeypatch.setattr(hooks.Path, "write_text", fail)
+    text = _context(hooks.prompt({"session_id": "s"}))
+    assert "wr rewrote 40 passages" in text and len(text) <= hooks.PART_LIMIT + 400

@@ -21,7 +21,6 @@ the code and the other docs. The checks widen to those files and no further.
 from __future__ import annotations
 
 import collections
-import decimal
 import ctypes
 import ctypes.util
 import os
@@ -53,15 +52,19 @@ _NUMBER = re.compile(r"\d[\d.,]*")
 _THOUSANDS = re.compile(r"\d{1,3}(?:,\d{3})+(?:\.\d+)?")
 
 
+_ZERO_FRACTION = re.compile(r"(\d+)\.0*")
+
+
 def _value(n: str) -> str:
-    """A number by its value, so 60 and 60.0, or 1000 and 1,000, are the same;
-    anything that is not a plain number (a version such as 1.2.0) stays as written
-    (2026-09-21: a correct "between -60 and 60" was refused against -60.0, 60.0)."""
-    plain = n.replace(",", "") if _THOUSANDS.fullmatch(n) else n
-    try:
-        return str(decimal.Decimal(plain).normalize())
-    except decimal.InvalidOperation:
-        return n
+    """A number as written, except that thousands separators and an all-zero
+    decimal part do not count: 60 and 60.0, 1000 and 1,000 are the same
+    (2026-09-21, a correct "between -60 and 60" refused against -60.0, 60.0).
+    Anything else stays as written, so 3.1 is not 3.10 and 7 is not 007
+    (audit, 2026-09-22)."""
+    if _THOUSANDS.fullmatch(n):
+        n = n.replace(",", "")
+    m = _ZERO_FRACTION.fullmatch(n)
+    return m.group(1) if m else n
 
 
 def _invented_numbers(replacement: str, source: str) -> list[str]:

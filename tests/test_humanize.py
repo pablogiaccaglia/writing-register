@@ -431,3 +431,13 @@ def test_a_span_whose_words_are_scattered_across_paragraphs_is_still_refused():
     new = ("# Registry\n\nThe sweeper enforces only some rows, by owner. The rest are "
            "catalogued.\n\nTiers are listed in `.env.example`, and retention is one.\n")
     assert "owner = retention" in check(RETENTION_OLD, new)
+
+
+def test_numbers_that_differ_as_versions_or_decimals_are_still_invented():
+    """Audit 2026-09-22: comparing by value accepted 3.1 for 3.10."""
+    from writing_register.humanize import _invented_numbers
+    assert _invented_numbers("Python 3.1", "requires Python 3.10") == ["3.1"]
+    assert _invented_numbers("4.2 volts", "4.20 volts") == ["4.2"]
+    assert _invented_numbers("7 agents", "agent 007") == ["7"]
+    assert _invented_numbers("60 degrees", "60.0 degrees") == []
+    assert _invented_numbers("1000 rows", "1,000 rows") == []

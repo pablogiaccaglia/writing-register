@@ -31,9 +31,9 @@ from .patterns import card
 
 NAME = "writing-register"
 PLAIN = "human-prose"
-# Claude Code lists the plugin's style as "writing-register:human-prose"
-# (seen with `/output-style`, 2026-09-21); the bare name is accepted as well.
-PLAIN_NAMES = {f"writing-register:{PLAIN}", PLAIN}
+# Claude Code lists the plugin's style as "writing-register:human-prose" (seen
+# with `/output-style`, 2026-09-21). The bare name could be a user's own style.
+PLAIN_NAMES = {f"writing-register:{PLAIN}"}
 SCOPE = """This style governs what a person reads: replies in this conversation, documentation and
 READMEs, reports, meeting and work cards, code comments and docstrings, commit messages and pull
 request descriptions, and messages written to a person.
@@ -140,8 +140,11 @@ def selected(cwd=None) -> str | None:
     the project's .claude/settings.local.json (where /config saves a choice),
     then the project's .claude/settings.json, then the user's settings."""
     places = []
-    if cwd:
-        project = Path(cwd) / ".claude"
+    # The project's own folder, which Claude Code gives its hooks; the hook's
+    # working folder can be a subfolder after the shell moved.
+    root = os.environ.get("CLAUDE_PROJECT_DIR") or cwd
+    if root:
+        project = Path(root) / ".claude"
         places += [project / "settings.local.json", project / "settings.json"]
     places.append(claude_dir() / "settings.json")
     for path in places:
