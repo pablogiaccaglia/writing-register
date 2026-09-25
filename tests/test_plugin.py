@@ -67,7 +67,8 @@ def test_the_plugin_hooks_call_wr_for_each_event():
     commands = {event: [x["command"] for group in groups for x in group["hooks"]]
                 for event, groups in h.items()}
     expected = {"SessionStart": {"session-start"}, "SubagentStart": {"subagent-start"},
-                "PreToolUse": {"pre-bash", "pre-edit"}, "PostToolUse": {"post-edit"},
+                "PreToolUse": {"pre-bash", "pre-edit", "pre-publish"},
+                "PostToolUse": {"post-edit", "post-publish"},
                 "Stop": {"stop"}, "UserPromptSubmit": {"prompt"}}
     assert set(commands) == set(expected)
     for event, names in expected.items():

@@ -26,7 +26,7 @@ CONFIG_ENV = "WR_CONFIG"
 CORE_MARKER = "<!-- wr:end-of-core -->"
 KNOWN_KEYS = {"voice", "auto", "metrics"}
 # What wr may rewrite by itself through the plugin's hooks (2026-09-15).
-AUTO_VALUES = {"markdown", "commit", "pr"}
+AUTO_VALUES = {"markdown", "commit", "pr", "notion", "mail", "discord"}
 
 
 class ConfigError(Exception):

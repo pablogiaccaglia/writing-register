@@ -56,6 +56,16 @@
             "timeout": 15
           }
         ]
+      },
+      {
+        "matcher": "mcp__.*[Nn]otion.*__notion-(create-pages|update-page)|mcp__.*mail.*__(compose_email|reply_to_email)|mcp__.*discord.*__discord_send_(message|dm)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "W=\"$(command -v wr 2>/dev/null || echo \\\"$HOME/.local/bin/wr\\\")\"; [ -x \"$W\" ] || exit 0; exec \"$W\" hook pre-publish",
+            "timeout": 200
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -65,6 +75,16 @@
           {
             "type": "command",
             "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; exec \"$W\" hook post-edit",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "mcp__.*[Nn]otion.*__notion-(create-pages|update-page)|mcp__.*mail.*__(compose_email|reply_to_email)|mcp__.*discord.*__discord_send_(message|dm)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "W=\"$(command -v wr 2>/dev/null || echo \\\"$HOME/.local/bin/wr\\\")\"; [ -x \"$W\" ] || exit 0; exec \"$W\" hook post-publish",
             "timeout": 15
           }
         ]

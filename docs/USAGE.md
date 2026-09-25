@@ -190,7 +190,7 @@ The exit code tells a script whether every file went through:
 The plugin's hooks let Claude Code rewrite text as Claude writes it, so nobody has to run the command by hand. Each hook calls `wr hook <event>`, and the hooks do nothing until the configuration says what they should rewrite:
 
 ```toml
-auto = ["markdown", "commit", "pr"]
+auto = ["markdown", "commit", "pr", "notion", "mail", "discord"]
 ```
 
 Each value turns on one kind of rewrite:
@@ -200,6 +200,7 @@ Each value turns on one kind of rewrite:
 | the voice and the patterns | When a session starts, and when a subagent starts | Claude is given the voice, a card naming the machine-writing patterns, and what wr rewrites by itself. Without a voice the card goes on its own, so a session is never left with no guidance. A subagent gets the voice too, because the session's own context does not reach it: measured across 5,654 transcripts, a subagent wrote 6.57 em or en dashes per 1,000 words where the main conversation wrote 0.40 |
 | `commit` | Before Claude runs `git commit` | The message is rewritten, and the command runs with the new message. The subject keeps its prefix, and the trailers stay as they are |
 | `pr` | Before Claude runs `gh pr create` or `gh pr edit` | The same, for the description after `--body`. The generated-with footer is never sent to the model, so it stays as it is. The model is asked to keep the headings and checklists, but no check refuses a rewrite that drops one |
+| `notion`, `mail`, `discord` | Before Claude creates or updates a Notion page, composes or replies to an email, or sends a Discord message through the matching tool | The prose fields are rewritten (for a page update, only the new text, never the text it replaces) and the call goes out with the new text. Right after the call, Claude is shown each passage that changed, old and new, so it can correct a shifted meaning with an update. Notion mentions, tables and embeds are kept; on ten real payloads the wait was 12 to 21 seconds for an update and 33 to 67 seconds for a new page. Text under 8 words is left alone |
 | `markdown` | Before and after Claude writes or edits a `.md` file, and when Claude's turn ends | The hook before an edit saves the file's text, and the hook after it records the sentences and list items that edit added. When the turn ends, a hook running in the background rewrites that recorded prose, with the same string checks as `wr humanize` but no sources and no check against the code (see [Only new prose is rewritten](#only-new-prose-is-rewritten)). At your next message, Claude is given each passage the rewrite changed, old and new, and asked to check that each still says what it meant; files kept as written are named too |
 
 ### Commit messages and pull request descriptions

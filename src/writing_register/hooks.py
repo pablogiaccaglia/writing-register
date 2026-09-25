@@ -229,6 +229,135 @@ def pre_bash(payload: dict, spawn=None) -> dict | None:
     return reply or None
 
 
+# Text Claude publishes through a tool (2026-09-25). The output style shapes
+# how Claude writes, but nothing checked the text on its way out: on
+# 2026-09-21 a Notion card went out with a garbled sentence the owner caught.
+# The prose fields of these tools are rewritten before the call runs, and the
+# changes are handed to Claude right after it, so it can fix a shifted meaning
+# with a follow-up update. Measured on ten real Notion payloads: every
+# mention, table and embed intact, 12 to 21 s per update, 33 to 67 s per page.
+_PUBLISH_WORDS = 8
+
+
+def _publish_fields(tool: str, tool_input: dict) -> tuple[str, str, list[tuple]]:
+    """The `auto` value, a label and the paths of the prose fields of one call."""
+    if tool.endswith("notion-create-pages"):
+        pages = tool_input.get("pages") or []
+        return "notion", "the Notion page", [("pages", i, "content") for i, _ in enumerate(pages)]
+    if tool.endswith("notion-update-page"):
+        paths = [("content_updates", i, "new_str")
+                 for i, _ in enumerate(tool_input.get("content_updates") or [])]
+        paths += [(k,) for k in ("new_str", "content") if isinstance(tool_input.get(k), str)]
+        return "notion", "the Notion page", paths
+    if tool.endswith("compose_email"):
+        return "mail", "the email", [("body",)]
+    if tool.endswith("reply_to_email"):
+        return "mail", "the email reply", [("reply_body",)]
+    if "discord" in tool and ("send_message" in tool or "send_dm" in tool):
+        return "discord", "the Discord message", [("content",)]
+    return "", "", []
+
+
+def _dig(obj, path):
+    for key in path:
+        if isinstance(key, int):
+            if not isinstance(obj, list) or key >= len(obj):
+                return None
+        elif not isinstance(obj, dict):
+            return None
+        obj = obj[key] if isinstance(key, int) else obj.get(key)
+    return obj
+
+
+def _set(obj, path, value):
+    for key in path[:-1]:
+        obj = obj[key]
+    obj[path[-1]] = value
+
+
+def _window_pair(old: str, new: str) -> str:
+    import json as _json
+    old, new = " ".join(old.split()), " ".join(new.split())
+    first = next((i for i, (a, b) in enumerate(zip(old, new)) if a != b), min(len(old), len(new)))
+    start = max(0, first - _NOTE_CHARS // 3)
+
+    def cut(text):
+        piece = text[start:start + _NOTE_CHARS]
+        return ("..." if start else "") + piece + ("..." if start + _NOTE_CHARS < len(text) else "")
+    return f"  {_json.dumps(cut(old), ensure_ascii=False)} -> {_json.dumps(cut(new), ensure_ascii=False)}"
+
+
+def pre_publish(payload: dict, spawn=None) -> dict | None:
+    """Rewrite the prose Claude is about to send to Notion, mail or Discord."""
+    import copy
+    tool, tool_input = payload.get("tool_name") or "", payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return None
+    kind, label, paths = _publish_fields(tool, tool_input)
+    if not kind:
+        return None
+    cfg, voice, _ = _settings()
+    if cfg is None or kind not in cfg.auto:
+        return None
+    texts = [(path, _dig(tool_input, path)) for path in paths]
+    texts = [(path, t) for path, t in texts if isinstance(t, str) and len(t.split()) >= _PUBLISH_WORDS]
+    if not texts:
+        return None
+
+    def rewrite(item):
+        path, text = item
+        try:
+            return path, text, humanize_text(text.rstrip("\n") + "\n", kind="prose", spawn=spawn,
+                                             voice=voice, timeout=HOOK_TIMEOUT)
+        except (SpawnFailed, SetupError) as e:
+            return path, text, e
+
+    with ThreadPoolExecutor(max_workers=len(texts)) as pool:
+        outcomes = list(pool.map(rewrite, texts))
+    updated, pairs, kept, seconds = copy.deepcopy(tool_input), [], [], 0.0
+    for path, text, result in outcomes:
+        if isinstance(result, Exception):
+            kept.append(str(result))
+            continue
+        _record_message(kind, text, result)
+        seconds = max(seconds, getattr(result, "seconds", 0.0))
+        if result.refused:
+            kept.append(result.refused)
+            continue
+        if not result.changed:
+            continue
+        new = result.text.rstrip("\n") + text[len(text.rstrip("\n")):]
+        if new != text:
+            _set(updated, path, new)
+            pairs.append((text, new))
+    reply = {}
+    if kept:
+        reply["systemMessage"] = f"wr kept {label} as written: {'; '.join(kept)}"
+    if pairs:
+        reply["hookSpecificOutput"] = {"hookEventName": "PreToolUse", "updatedInput": updated}
+        d = _state_dir(payload.get("session_id"), create=True)
+        if d is not None:
+            lines = [f"wr rewrote the text sent to {label} in {seconds:.0f}s, before it went out. "
+                     "Each passage it changed is below, old -> new; check that each still says what "
+                     "you meant, and correct the published text with an update if one does not:"]
+            lines += [_window_pair(old, new) for old, new in pairs[:_NOTE_PAIRS]]
+            with _locked(d), (d / "published").open("a", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+    return reply or None
+
+
+def post_publish(payload: dict, spawn=None) -> dict | None:
+    """Hand Claude, right after the call, what pre_publish changed."""
+    d = _state_dir(payload.get("session_id"))
+    if d is None or not d.is_dir():
+        return None
+    with _locked(d):
+        note = _take(d / "published")
+    if not note.strip():
+        return None
+    return {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": note[:PART_LIMIT]}}
+
+
 def _rewrite_message(candidate, voice: str, spawn):
     """Rewrite one message found in a command.
 
@@ -719,7 +848,8 @@ def prompt(payload: dict, spawn=None) -> dict | None:
 # voice reaches every interactive session wherever the plugin is installed.
 
 _AUTO_LABELS = (("commit", "commit messages"), ("pr", "PR descriptions"),
-                ("markdown", "markdown files"))
+                ("markdown", "markdown files"), ("notion", "Notion pages"),
+                ("mail", "emails"), ("discord", "Discord messages"))
 
 
 # Claude Code shows the model at most about 10,000 characters of a hook's
@@ -837,7 +967,10 @@ def session_start(payload: dict, spawn=None, part: int | None = None) -> dict | 
             "description is rewritten before its command runs. A markdown file is "
             "rewritten after your turn ends, prose only, adding no facts, and the next "
             "prompt lists each passage it changed, old and new, so you can check that "
-            "each still says what you meant. Write them as usual.")
+            "each still says what you meant. Write them as usual."
+            + (" Text you send to Notion, mail or Discord through a tool is rewritten before "
+               "the call runs, and right after it you are shown each passage it changed."
+               if set(cfg.auto) & {"notion", "mail", "discord"} else ""))
     if voice.strip():
         parts.append(voice)
     if patterns_card:
@@ -881,7 +1014,7 @@ def subagent_start(payload: dict, spawn=None, part: int | None = None) -> dict |
     return {"hookSpecificOutput": {"hookEventName": "SubagentStart", "additionalContext": body}}
 
 
-HANDLERS = {"session-start": session_start, "subagent-start": subagent_start, "pre-bash": pre_bash, "pre-edit": pre_edit, "post-edit": post_edit, "stop": stop, "prompt": prompt}
+HANDLERS = {"session-start": session_start, "subagent-start": subagent_start, "pre-bash": pre_bash, "pre-publish": pre_publish, "post-publish": post_publish, "pre-edit": pre_edit, "post-edit": post_edit, "stop": stop, "prompt": prompt}
 
 
 def run(event: str, stdin, out, spawn=None, part: int | None = None) -> int:

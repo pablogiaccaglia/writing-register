@@ -109,6 +109,7 @@ Each value in `auto` turns on one kind of rewrite:
 - `commit`: when Claude runs `git commit`, the plugin rewrites the message before the command runs, which usually takes a few seconds. Trailers such as `Co-Authored-By:` stay as they are. If the rewrite takes longer than 90 seconds, the command runs with the message Claude wrote.
 - `pr`: the plugin does the same for the description passed to `gh pr create` or `gh pr edit`.
 - `markdown`: after Claude's turn ends, the plugin rewrites in the background the prose Claude added to markdown files.
+- `notion`, `mail`, `discord`: before Claude creates or updates a Notion page, sends an email or posts a Discord message through the matching tool, the plugin rewrites the text it is about to send, and right after the call shows Claude each passage it changed. A new page takes about half a minute to a minute, an update 10 to 20 seconds.
 
 The markdown rewrite sends only the sentences and list items Claude added, never the rest of the file and never text you typed yourself. A change of fewer than 8 words is left alone. The rewrite changes prose only and adds no facts, because the model that rewrites does not see the repository. When you send your next message, Claude is shown each passage that changed, old and new, so it can check that each one still says what it meant, since Claude wrote the text with the repository open.
 
@@ -162,7 +163,7 @@ All settings live in one file on your machine, `~/.config/writing-register/confi
 | Setting | Values | Effect |
 |---|---|---|
 | `voice` | a voice name, a path to a voice file or directory, or `"none"` | The voice every layer follows; a relative path is read from the folder that holds the file |
-| `auto` | any of `"markdown"`, `"commit"`, `"pr"` | What the plugin rewrites by itself |
+| `auto` | any of `"markdown"`, `"commit"`, `"pr"`, `"notion"`, `"mail"`, `"discord"` | What the plugin rewrites by itself |
 | `metrics` | `true` (the default) or `false` | Whether each automatic rewrite leaves one line of numbers, which `wr report` totals |
 
 `wr voice` shows the active voice and where the choice came from. A mistake in the file, such as a misspelled setting, makes `wr` stop with a message naming it, and the plugin repeats that message at the start of each session. The voice and the automatic rewrites stay off until the mistake is fixed.
