@@ -144,8 +144,9 @@ and subagent delivery reached the model as its first 2KB only: 227 deliveries
 since 2026-09-15, none whole. The plugin now registers each of the two hooks
 six times, and `wr hook ... --part K` sends only part K, cut where a section
 starts, at most 9,000 characters, and labelled "part K of N" because Claude Code
-may deliver the parts in any order. A live check in an interactive session
-showed a new subagent receiving all three parts of the voice in full.
+may deliver the parts in any order. A live check in an interactive session on
+2026-09-21, when the voice needed three parts, showed a new subagent receiving
+all three in full.
 
 **`wr style` writes the same two things as an output style** for anyone who
 wants them in the system prompt instead. It works with no voice, carrying the

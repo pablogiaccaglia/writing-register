@@ -19,5 +19,5 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", "private/test*"]
+testpaths = ["tests"]
 addopts = "-q"

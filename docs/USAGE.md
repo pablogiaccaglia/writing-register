@@ -200,7 +200,7 @@ Each value turns on one kind of rewrite:
 | the voice and the patterns | When a session starts, and when a subagent starts | Claude is given the voice, a card naming the machine-writing patterns, and what wr rewrites by itself. Without a voice the card goes on its own, so a session is never left with no guidance. A subagent gets the voice too, because the session's own context does not reach it: measured across 5,654 transcripts, a subagent wrote 6.57 em or en dashes per 1,000 words where the main conversation wrote 0.40 |
 | `commit` | Before Claude runs `git commit` | The message is rewritten, and the command runs with the new message. The subject keeps its prefix, and the trailers stay as they are |
 | `pr` | Before Claude runs `gh pr create` or `gh pr edit` | The same, for the description after `--body`. The generated-with footer is never sent to the model, so it stays as it is. The model is asked to keep the headings and checklists, but no check refuses a rewrite that drops one |
-| `notion`, `mail`, `discord` | Before Claude creates or updates a Notion page, composes or replies to an email, or sends a Discord message through the matching tool | The prose fields are rewritten (for a page update, only the new text, never the text it replaces) and the call goes out with the new text. Right after the call, Claude is shown each passage that changed, old and new, so it can correct a shifted meaning with an update. Notion mentions, tables and embeds are kept; on ten real payloads the wait was 12 to 21 seconds for an update and 33 to 67 seconds for a new page. Text under 8 words is left alone |
+| `notion`, `mail`, `discord` | Before Claude calls the Notion connector's `notion-create-pages` or `notion-update-page`, Apple Mail's `compose_email` or `reply_to_email`, or Discord's `discord_send_message` or `discord_send_dm` | The prose Claude added is rewritten and the call goes out with the new text. See [Text sent through a tool](#text-sent-through-a-tool) |
 | `markdown` | Before and after Claude writes or edits a `.md` file, and when Claude's turn ends | The hook before an edit saves the file's text, and the hook after it records the sentences and list items that edit added. When the turn ends, a hook running in the background rewrites that recorded prose, with the same string checks as `wr humanize` but no sources and no check against the code (see [Only new prose is rewritten](#only-new-prose-is-rewritten)). At your next message, Claude is given each passage the rewrite changed, old and new, and asked to check that each still says what it meant; files kept as written are named too |
 
 ### Commit messages and pull request descriptions
@@ -215,6 +215,25 @@ The message also has to belong to the `git commit` or `gh pr` command itself. Te
 When one command holds both a commit message and a PR description, both are rewritten, the two model calls run side by side, and a single notice reports each result. A commit written as `git -C path commit` is handled like any other. The hook starts `wr` only when the command mentions a commit or `gh pr`, so other commands run no slower.
 
 Rewriting a short message took between 4 and 14 seconds when measured on 2026-09-15. The hook gives up after 90 seconds and lets the command run as Claude wrote it. The command also runs as Claude wrote it when the checks refuse the rewrite, and Claude Code then shows a one-line notice with the reason.
+
+### Text sent through a tool
+
+With `notion`, `mail` or `discord` in `auto`, a hook runs before Claude calls one of these tools and rewrites the prose Claude added:
+
+| Tool | Field rewritten |
+|---|---|
+| `notion-create-pages` (the Notion connector) | the `content` of each page |
+| `notion-update-page` | `new_str` of each content update, measured against its `old_str`; `new_str` of a whole-page replacement; `content` of an insertion |
+| `compose_email`, `reply_to_email` (Apple Mail) | `body`, `reply_body` |
+| `discord_send_message`, `discord_send_dm` | `content` |
+
+Only the prose passages that are new against the text the call replaces are sent to the model: for a Notion update that is what `new_str` adds to `old_str`, so appending a paragraph to a teammate's card rewrites that paragraph and leaves theirs alone, and changing a few words in an existing sentence rewrites nothing. A passage is a run of new sentences in one paragraph, or of new items in one list, of at least 8 words. Tables, HTML blocks such as Notion's `<page>` and `<table>`, and headings are never sent. The passages of one field go to the model in one call, and each comes back through the same checks as the markdown path. A passage is also refused when one of its tags, attribute blocks or mentions changed: a Notion `<mention-user .../>` or `{color="red"}`, or a Discord `<@id>` or `<#id>`. A Discord message that the rewrite would push over Discord's 2,000-character limit is left as written.
+
+The fields of one call are rewritten side by side, at most four at a time. Each call to the model gives up after 90 seconds, and a field that could not finish within the hook's own limit of 200 seconds is not started. An email with an HTML body (`body_html`) is not rewritten at all, since the HTML is what the recipient reads and a rewrite of the plain text beside it would send two versions that disagree. In every one of these cases the text goes out as Claude wrote it, and Claude Code shows a one-line notice with the reason.
+
+Right after the call succeeds, Claude is shown each passage that changed, old and new, and asked to check that each still says what it meant: to correct a Notion page with another update, a Discord message with `discord_edit_message`, and for an email, which has already been sent, to tell the user. The note is kept for that call only, under its `tool_use_id`, so a call that fails never hands its note to a later one; a note too long for a hook is delivered in part, with the full list saved to a file Claude is told to read.
+
+Other tools that publish text are not covered, among them `notion-create-comment`, the Notion API server's page tools, Apple Mail's `forward_email` and `create_rich_email_draft`, and `discord_edit_message`. On ten real Notion payloads, timed before the hook was wired in, a rewrite took 12 to 21 seconds for an update and 33 to 67 seconds for a new page, and every mention, table and embed survived; mail and Discord were not timed.
 
 ### Only new prose is rewritten
 
@@ -276,18 +295,20 @@ wr style --print    # prints it instead
 
 The style carries the machine-writing patterns and, when one is set, the voice, with the voice winning where they disagree. It is generated rather than shipped, because a plugin's files are the same for everyone and a voice belongs to a person. Without a voice, the plugin's own style `writing-register:human-prose` carries the patterns alone: select it with `/output-style writing-register:human-prose` or in `/config`. It sets `keep-coding-instructions: true`, so Claude Code's software-engineering instructions stay as they are and only the writing changes. Run it again after editing the voice, and restart Claude Code to pick the change up.
 
-A style reaches the main conversation and a fork, never an ordinary subagent, which is why the plugin also gives the voice to each subagent through a hook. Claude Code shows the model at most about 10,000 characters of one hook's text, so the session-start and subagent hooks are registered six times and each sends one part of the voice, labelled "part K of N". When the voice style is selected, the session-start hook stops sending the voice and the patterns, so they never travel twice; with the plugin's style it stops sending the patterns only. The hook reads the selected style from the project's `.claude/settings.local.json` (where `/config` saves it), then the project's `.claude/settings.json`, then the user's settings. [docs/STEERING.md](STEERING.md) covers the trade-off in full.
+A style reaches the main conversation and a fork, never an ordinary subagent, which is why the plugin also gives the voice to each subagent through a hook. Claude Code shows the model at most about 10,000 characters of one hook's text, so the session-start and subagent hooks are registered six times, and each registration sends one part of the voice, labelled "part K of N"; a voice that needs fewer parts leaves the other registrations silent. When the voice style is selected, the session-start hook stops sending the voice and the patterns, so they never travel twice; with the plugin's style it stops sending the patterns only. The hook reads the selected style from the project's `.claude/settings.local.json` (where `/config` saves it), then the project's `.claude/settings.json`, then the user's settings. [docs/STEERING.md](STEERING.md) covers the trade-off in full.
 
 ## What the rewrites have had to change
 
-Each automatic rewrite leaves one line in `~/.cache/writing-register/auto/metrics/`, saying how many words it sent to the model, how many words were in the passages that came back changed (for a commit message or a pull request description, the whole rewritten text), how long it took and whether it was refused; a markdown rewrite also names the file and the number of passages. `wr report` reads them:
+Each automatic rewrite leaves one line in `~/.cache/writing-register/auto/metrics/`, saying how many words it sent to the model, how many words were in the passages that came back changed (for a commit message or a pull request description, the whole rewritten text; for text sent through a tool, the passages that changed), how long it took and whether it was refused; a markdown rewrite also names the file and the number of passages. `wr report` reads them:
 
 ```
 $ wr report
 48 rewrites recorded, the first on 2026-09-16.
 31 passage rewrites of what Claude wrote: 12% of the words it sent were changed, 44 passages in all.
 17 commit messages and pull request descriptions: 31% of the words changed.
-2 were refused and kept beside their file.
+6 texts sent to Notion, mail or Discord: 18% of the words changed.
+2 markdown rewrites were refused and kept beside their file.
+1 message rewrites were refused, so the text went out as written.
 ```
 
 The number worth watching is the share of words changed. It says how far what Claude writes by itself still sits from what you want to read, so it should fall as the voice does its work. Set `metrics = false` in the configuration to keep no record at all.
