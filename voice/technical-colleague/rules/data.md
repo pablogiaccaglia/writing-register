@@ -1,7 +1,9 @@
 # Data, and evidence that a method works
 
-- {#data.label-leakage} Every result, table cell and figure says whether it used information that would not be available in real use, and how much of the result depends on it, so an upper bound is never read as achievable performance.
-- {#data.held-out-evidence} Evidence that a method works comes from data it never saw while it was fitted or tuned. Examples and results are drawn from every held-out split, and results on training data appear only beside them as a check.
+- {#data.label-leakage} Every result, table cell and figure says whether it used information that would not be available in real use, and how much of the result depends on it. Every value shown is marked as a prediction or as the truth, in the text and in the files the method writes.
+- {#data.held-out-evidence} Evidence that a method works comes from data it never saw while it was fitted or tuned. Once a held-out split has been opened under the project's rules, every result, table and figure given for the training data is given for that split beside it, and a held-out value that is missing is computed from what already exists rather than reported as missing.
 - {#data.state-the-split} Before any result, a report says which data splits exist, which do not and why, what each is used for and what the model was trained on, and every result and figure names the split it comes from.
 - {#data.exclusions refines=content.gaps-as-actions} When cases are excluded or skipped, the text says which ones and why in the same sentence as the count, and what it would take to bring them back.
 - {#data.examples-and-summary} Example cases are paired with a summary over the whole dataset, both aggregate and broken down by the factors that matter, so the reader knows how common the behaviour shown is.
+- {#data.source-and-instance} When one source object is reused and each run derives its own instance from it, the text names the source and the instance differently and says which of the two every count, split and weight refers to.
+- {#data.measure-the-doubt} When a reader suspects that the way a result was computed biases it, the text checks the suspicion, by measurement where the data allow it, and states the outcome where the result is given; a suspicion that cannot yet be checked is written as future work.

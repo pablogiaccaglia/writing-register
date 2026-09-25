@@ -1,5 +1,5 @@
 format = 1
 name = "Technical colleague"
-budget = 22500
+budget = 24700
 evidence = "required"
 order = ["scope.md", "reader.md", "register.md", "introduce.md", "order.md", "journey.md", "content.md", "claims.md", "math.md", "figures.md", "data.md", "references.md", "artifacts.md", "kinds.md", "kinds/documentation.md", "kinds/meeting-cards.md", "kinds/work-cards.md", "kinds/status-updates.md", "kinds/replies.md", "kinds/commits.md", "kinds/team-messages.md", "rewriting.md"]

@@ -2,7 +2,7 @@
 
 {#register.careful-engineer} The text reads like a careful engineer explaining something to a colleague: natural, discursive and human, easy to follow from the first sentence. It reads as a person would write it, without details dropped randomly here and there.
 
-{#register.not-telegraphic} Stiff, clipped, telegraphic prose is a failure too: tightening a text until it reads like a list of fragments makes it robotic, which fails the reader as surely as padding does.
+{#register.not-telegraphic} Stiff, clipped, telegraphic prose is a failure too, and so is a rushed explanation: a passage that states results, rules or steps without the sentence each one needs to be understood, or that takes a step for granted. Tightening a text until it reads like a list of fragments or a run of numbers makes it robotic.
 
 {#register.on-top-of-skill} These rules apply on top of the humanizer skill:
 

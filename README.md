@@ -153,7 +153,7 @@ Each rule carries an identifier, so evidence and decisions can point at it and a
 | `wr voice build` | Writes the whole voice as one readable file |
 | `wr voice split FILE` | Turns a single-file voice into a directory |
 
-[`voice/technical-colleague/`](voice/technical-colleague/) is a complete example: a technical lead's voice with 141 rules in 22 files, covering everything from the reader and the register to mathematics, figures and data splits, with the owner's private details removed. [docs/VOICE_FORMAT.md](docs/VOICE_FORMAT.md) is the format reference. [docs/BUILDING_A_VOICE.md](docs/BUILDING_A_VOICE.md) explains how to build your own voice: collect your corrections, turn each into a rule a reader can check, admit a rule only when it recurs, and measure whether it changes anything. The scripts in `scripts/` search your Claude Code conversations for those corrections.
+[`voice/technical-colleague/`](voice/technical-colleague/) is a complete example: a technical lead's voice with 146 rules in 22 files, covering everything from the reader and the register to mathematics, figures and data splits, with the owner's private details removed. [docs/VOICE_FORMAT.md](docs/VOICE_FORMAT.md) is the format reference. [docs/BUILDING_A_VOICE.md](docs/BUILDING_A_VOICE.md) explains how to build your own voice: collect your corrections, turn each into a rule a reader can check, admit a rule only when it recurs, and measure whether it changes anything. The scripts in `scripts/` search your Claude Code conversations for those corrections.
 
 ## Configuration
 
