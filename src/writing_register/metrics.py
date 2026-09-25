@@ -66,6 +66,9 @@ def _share(rows, key="words_changed", of="words_sent") -> float:
     return 100 * changed / sent if sent else 0.0
 
 
+_PUBLISHED = {"notion", "mail", "discord"}
+
+
 def report(since: str = "") -> str:
     """What the rewrites did, in a few lines: the number that should fall is the
     share of Claude's own words the rewriter still changes."""
@@ -74,15 +77,26 @@ def report(since: str = "") -> str:
         return "wr has recorded no rewrites yet."
     passages = [r for r in rows if r.get("event") == "passages"]
     messages = [r for r in rows if r.get("event") == "message"]
-    refused = [r for r in rows if r.get("refused")]
+    # Text sent through a tool is recorded as a message too (2026-09-25), and
+    # was counted here as a commit message until the audit the same day.
+    published = [r for r in messages if r.get("kind") in _PUBLISHED]
+    commits = [r for r in messages if r.get("kind") not in _PUBLISHED]
     lines = [f"{len(rows)} rewrites recorded, the first on {str(rows[0].get('at', ''))[:10]}."]
     if passages:
         lines.append(f"{len(passages)} passage rewrites of what Claude wrote: "
                      f"{_share(passages):.0f}% of the words it sent were changed, "
                      f"{sum(int(r.get('passages') or 0) for r in passages)} passages in all.")
-    if messages:
-        lines.append(f"{len(messages)} commit messages and pull request descriptions: "
-                     f"{_share(messages):.0f}% of the words changed.")
-    if refused:
-        lines.append(f"{len(refused)} were refused and kept beside their file.")
+    if commits:
+        lines.append(f"{len(commits)} commit messages and pull request descriptions: "
+                     f"{_share(commits):.0f}% of the words changed.")
+    if published:
+        lines.append(f"{len(published)} texts sent to Notion, mail or Discord: "
+                     f"{_share(published):.0f}% of the words changed.")
+    refused_files = [r for r in passages if r.get("refused")]
+    refused_messages = [r for r in messages if r.get("refused")]
+    if refused_files:
+        lines.append(f"{len(refused_files)} markdown rewrites were refused and kept beside their file.")
+    if refused_messages:
+        lines.append(f"{len(refused_messages)} message rewrites were refused, so the text "
+                     "went out as written.")
     return "\n".join(lines)

@@ -492,6 +492,72 @@ def _raw_offsets(raw: str):
     return lambda k: k + bisect.bisect_right(crlf, k - 1)
 
 
+# Markup that is not prose: Notion tags such as <mention-user .../> and
+# <page ...>, Notion attribute blocks such as {color="red"}, and Discord's
+# <@id>, <#id> and <@&id> mentions. A rewrite that loses or changes any of them
+# changed something other than the prose (audit 2026-09-25: a dropped <page>
+# tag in a Notion replace deletes the child page).
+_MARKUP = re.compile(r"<[^<>\n]+>|\{[^{}\n]*=[^{}\n]*\}")
+
+
+def markup(text: str) -> "collections.Counter":
+    import collections
+    return collections.Counter(_MARKUP.findall(text))
+
+
+def rewrite_marked(current: str, found: list[Passage], *, spawn=None, voice: str = "",
+                   model: str | None = None, timeout: int | None = None, base=None,
+                   keep_markup: bool = False) -> tuple[list[str] | None, str, bool, float]:
+    """Rewrite the passages `found` in `current` in one model call.
+
+    Returns the rewritten passages (None when the reply broke the protocol),
+    the reason the rewrite must not be used or "", whether a retry may help, and
+    the seconds the call took. The passages come back even when a check refuses
+    them, so a caller can keep the refused copy. With `keep_markup`, a passage
+    whose tags, attribute blocks or mentions changed is refused too."""
+    import secrets
+    import time
+
+    from .humanize import DEFAULT_TIMEOUT, _unwrap, check, load_skill
+    from .spawn import Spawn
+
+    token = f"wr-{secrets.token_hex(4)}"
+    marked = _splice(current, found, [f"[[{token} passage {i}]]\n{p.text}\n[[/{token} passage {i}]]"
+                                      for i, p in enumerate(found, 1)])
+    spawn = spawn or Spawn()
+    started = time.monotonic()
+    answer = spawn.run(build_passage_prompt(marked, len(found), load_skill(), voice, {}, token),
+                       model=model, timeout=timeout or DEFAULT_TIMEOUT)
+    reply = _unwrap(getattr(answer, "stdout", answer) or "")
+    seconds = time.monotonic() - started
+    pattern = re.compile(rf"\[\[{token} passage (\d+)\]\]\n?(.*?)\n?\[\[/{token} passage \1\]\]", re.S)
+    matches = list(pattern.finditer(reply))
+    between = [reply[a:b] for a, b in zip([0] + [m.end() for m in matches],
+                                          [m.start() for m in matches] + [len(reply)])]
+    if [int(m.group(1)) for m in matches] != list(range(1, len(found) + 1)):
+        return None, (f"the reply did not return each of the {len(found)} marked "
+                      f"passage{'s' if len(found) != 1 else ''} once and in order"), True, seconds
+    if any(gap.strip() for gap in between):
+        return None, "the reply had text outside the marked passages", True, seconds
+    rewritten = [m.group(2).strip("\n") for m in matches]
+    anchors = _anchors(_splice(current, found, rewritten))
+    for number, (passage, text) in enumerate(zip(found, rewritten), 1):
+        reason = _shape_problem(number, passage, text)
+        if not reason and passage.kind == "paragraph" and _TERMINAL.search(passage.text):
+            after = current[passage.end:current.find("\n", passage.end) if "\n" in current[passage.end:] else len(current)]
+            if after.strip() and not _TERMINAL.search(text):
+                # Review 3: without its full stop, the sentence ran into the next.
+                reason = (f"passage {number} lost the full stop that separates it from the "
+                          "sentence after it")
+        if not reason and keep_markup and markup(passage.text) != markup(text):
+            reason = f"passage {number} changed a tag or mention, and the rewrite may change prose only"
+        reason = reason or check(passage.text + "\n", text + "\n", current, base=base,
+                                 floor=PASSAGE_FLOOR, unit=f"passage {number}", anchors=anchors)
+        if reason:
+            return rewritten, reason if f"passage {number}" in reason else f"passage {number}: {reason}", False, seconds
+    return rewritten, "", False, seconds
+
+
 def humanize_passages(path, baseline: str | None = None, *, keys: set | None = None,
                       spawn=None, voice: str = "",
                       model: str | None = None, timeout: int | None = None,
@@ -505,13 +571,9 @@ def humanize_passages(path, baseline: str | None = None, *, keys: set | None = N
     its own (not empty, same shape, the length floor, and the usual checks with
     the whole document as sources and its headings as link targets). The write
     is the atomic swap. With nothing new, no call is made."""
-    import secrets
-    import time
     from pathlib import Path
 
-    from .humanize import (DEFAULT_TIMEOUT, Result, _lf, _read, _unwrap, _write,
-                           _write_unless_changed, check, load_skill)
-    from .spawn import Spawn
+    from .humanize import Result, _lf, _read, _write, _write_unless_changed
 
     path = Path(path)
     raw = _read(path)
@@ -524,53 +586,17 @@ def humanize_passages(path, baseline: str | None = None, *, keys: set | None = N
     result.sent_keys = {k for p in found for k in p.keys}
     if not found:
         return result
-    token = f"wr-{secrets.token_hex(4)}"
-    marked = _splice(current, found, [f"[[{token} passage {i}]]\n{p.text}\n[[/{token} passage {i}]]"
-                                      for i, p in enumerate(found, 1)])
-    sources = {}
-    spawn = spawn or Spawn()
-    started = time.monotonic()
-    answer = spawn.run(build_passage_prompt(marked, len(found), load_skill(), voice, sources, token),
-                       model=model, timeout=timeout or DEFAULT_TIMEOUT)
-    reply = _unwrap(getattr(answer, "stdout", answer) or "")
-    result.seconds, result.sources = time.monotonic() - started, list(sources)
-    pattern = re.compile(rf"\[\[{token} passage (\d+)\]\]\n?(.*?)\n?\[\[/{token} passage \1\]\]", re.S)
-    matches = list(pattern.finditer(reply))
-    between = [reply[a:b] for a, b in zip([0] + [m.end() for m in matches],
-                                          [m.start() for m in matches] + [len(reply)])]
-    if [int(m.group(1)) for m in matches] != list(range(1, len(found) + 1)):
-        result.refused = (f"the reply did not return each of the {len(found)} marked "
-                          f"passage{'s' if len(found) != 1 else ''} once and in order")
-        result.retry = True
+    rewritten, result.refused, result.retry, result.seconds = rewrite_marked(
+        current, found, spawn=spawn, voice=voice, model=model, timeout=timeout,
+        base=path.resolve().parent)
+    if rewritten is None:
         return result
-    if any(gap.strip() for gap in between):
-        result.refused = "the reply had text outside the marked passages"
-        result.retry = True
-        return result
-    rewritten = [m.group(2).strip("\n") for m in matches]
     from .changes import changes_between
     # What the rewrite did, for the note that asks Claude to check it: the old
     # and new text of every passage it changed, and the sentence-level list.
     result.pairs = [(p.text, t) for p, t in zip(found, rewritten) if " ".join(p.text.split()) != " ".join(t.split())]
     result.changes = [c for p, t in zip(found, rewritten) for c in changes_between(p.text, t) if c.kind != "same"]
-    new = _splice(current, found, rewritten)
-    result.text = new
-    context = "\n".join([current, *sources.values()])
-    anchors = _anchors(new)
-    for number, (passage, text) in enumerate(zip(found, rewritten), 1):
-        reason = _shape_problem(number, passage, text)
-        if not reason and passage.kind == "paragraph" and _TERMINAL.search(passage.text):
-            after = current[passage.end:current.find("\n", passage.end) if "\n" in current[passage.end:] else len(current)]
-            if after.strip() and not _TERMINAL.search(text):
-                # Review 3: without its full stop, the sentence ran into the next.
-                reason = (f"passage {number} lost the full stop that separates it from the "
-                          "sentence after it")
-        reason = reason or check(passage.text + "\n", text + "\n", context,
-                                 base=path.resolve().parent, floor=PASSAGE_FLOOR,
-                                 unit=f"passage {number}", anchors=anchors)
-        if reason:
-            result.refused = reason if f"passage {number}" in reason else f"passage {number}: {reason}"
-            break
+    result.text = _splice(current, found, rewritten)
     # The passages go back into the raw text, each with the line ending of the
     # text it replaces, so a file mixing endings keeps every other byte (review 3).
     to_raw = _raw_offsets(raw)
@@ -579,14 +605,14 @@ def humanize_passages(path, baseline: str | None = None, *, keys: set | None = N
         start, end = to_raw(passage.start), to_raw(passage.end)
         piece = text.replace("\n", "\r\n") if "\r\n" in raw[start:end] else text
         raw_new = raw_new[:start] + piece + raw_new[end:]
-    if write and not result.refused and new != current:
+    if write and not result.refused and result.text != current:
         if _write_unless_changed(path, raw, raw_new):
             result.written = True
         else:
             result.conflict = True
             result.refused = ("the file changed while it was being rewritten, so the "
                               "rewrite was not written over those changes")
-    if write and result.refused and new != current:
+    if write and result.refused and result.text != current:
         result.kept = path.with_name(f"{path.stem}.refused{path.suffix}")
         _write(result.kept, raw_new)
     return result

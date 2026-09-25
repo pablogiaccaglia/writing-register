@@ -232,29 +232,54 @@ def pre_bash(payload: dict, spawn=None) -> dict | None:
 # Text Claude publishes through a tool (2026-09-25). The output style shapes
 # how Claude writes, but nothing checked the text on its way out: on
 # 2026-09-21 a Notion card went out with a garbled sentence the owner caught.
-# The prose fields of these tools are rewritten before the call runs, and the
-# changes are handed to Claude right after it, so it can fix a shifted meaning
-# with a follow-up update. Measured on ten real Notion payloads: every
-# mention, table and embed intact, 12 to 21 s per update, 33 to 67 s per page.
+# The prose Claude adds through these tools is rewritten before the call runs,
+# and each changed passage is handed to Claude right after it, so it can fix a
+# shifted meaning. Measured on ten real Notion payloads before the hook was
+# wired in: 12 to 21 s per update, 33 to 67 s per new page.
+#
+# The closing audit the same day found that the first version rewrote each
+# field whole. So the hook now works like the markdown path: only the prose
+# passages that are new against the text a call replaces are sent (for a
+# Notion update, `new_str` against its `old_str`), tables, HTML blocks and
+# headings never are, every passage is checked on its own, a passage whose
+# tags or mentions changed is refused, and the note lists every changed
+# passage and goes to the call that caused it.
 _PUBLISH_WORDS = 8
+# Calls run side by side, at most this many at once: a Notion call may carry
+# up to 100 fields, and 100 parallel `claude -p` runs would hit rate limits.
+_PUBLISH_WORKERS = 4
+# The hook itself is stopped after 200 s (hooks.json). A field that could not
+# finish inside this budget is not started and goes out as written.
+_PUBLISH_BUDGET = 180
+_DISCORD_LIMIT = 2000
+_PUBLISH_AFTER = {
+    "notion": "correct the page with another update if one does not",
+    "mail": "the email has been sent, so if one does not, tell the user what changed",
+    "discord": "correct the message with discord_edit_message if one does not",
+}
 
 
 def _publish_fields(tool: str, tool_input: dict) -> tuple[str, str, list[tuple]]:
-    """The `auto` value, a label and the paths of the prose fields of one call."""
+    """The `auto` value, a label and (path, baseline) for each prose field of one call.
+
+    The baseline is the text the field replaces, so only what is new against it
+    is rewritten: a Notion update's `old_str`, or nothing."""
     if tool.endswith("notion-create-pages"):
         pages = tool_input.get("pages") or []
-        return "notion", "the Notion page", [("pages", i, "content") for i, _ in enumerate(pages)]
+        return "notion", "the Notion page", [(("pages", i, "content"), "") for i, _ in enumerate(pages)]
     if tool.endswith("notion-update-page"):
-        paths = [("content_updates", i, "new_str")
-                 for i, _ in enumerate(tool_input.get("content_updates") or [])]
-        paths += [(k,) for k in ("new_str", "content") if isinstance(tool_input.get(k), str)]
-        return "notion", "the Notion page", paths
+        updates = tool_input.get("content_updates") or []
+        fields = [(("content_updates", i, "new_str"),
+                   u.get("old_str") if isinstance(u, dict) and isinstance(u.get("old_str"), str) else "")
+                  for i, u in enumerate(updates)]
+        fields += [((k,), "") for k in ("new_str", "content") if isinstance(tool_input.get(k), str)]
+        return "notion", "the Notion page", fields
     if tool.endswith("compose_email"):
-        return "mail", "the email", [("body",)]
+        return "mail", "the email", [(("body",), "")]
     if tool.endswith("reply_to_email"):
-        return "mail", "the email reply", [("reply_body",)]
-    if "discord" in tool and ("send_message" in tool or "send_dm" in tool):
-        return "discord", "the Discord message", [("content",)]
+        return "mail", "the email reply", [(("reply_body",), "")]
+    if tool.endswith(("discord_send_message", "discord_send_dm")):
+        return "discord", "the Discord message", [(("content",), "")]
     return "", "", []
 
 
@@ -276,7 +301,6 @@ def _set(obj, path, value):
 
 
 def _window_pair(old: str, new: str) -> str:
-    import json as _json
     old, new = " ".join(old.split()), " ".join(new.split())
     first = next((i for i, (a, b) in enumerate(zip(old, new)) if a != b), min(len(old), len(new)))
     start = max(0, first - _NOTE_CHARS // 3)
@@ -284,7 +308,44 @@ def _window_pair(old: str, new: str) -> str:
     def cut(text):
         piece = text[start:start + _NOTE_CHARS]
         return ("..." if start else "") + piece + ("..." if start + _NOTE_CHARS < len(text) else "")
-    return f"  {_json.dumps(cut(old), ensure_ascii=False)} -> {_json.dumps(cut(new), ensure_ascii=False)}"
+    return f"  {json.dumps(cut(old), ensure_ascii=False)} -> {json.dumps(cut(new), ensure_ascii=False)}"
+
+
+def _rewrite_field(kind: str, baseline: str, text: str, voice: str, spawn, timeout: int):
+    """Rewrite the new prose passages of one field.
+
+    Returns the new text, the (old, new) pair of every changed passage, the
+    reason it was refused or "", the words sent and changed, and the seconds."""
+    from .passages import _splice, changed_passages, rewrite_marked
+    found = changed_passages(baseline, text, _PUBLISH_WORDS)
+    if not found:
+        return None
+    rewritten, refused, _, seconds = rewrite_marked(text, found, spawn=spawn, voice=voice,
+                                                    timeout=timeout, keep_markup=True)
+    sent = sum(len(p.text.split()) for p in found)
+    if rewritten is None or refused:
+        return text, [], refused, sent, 0, seconds
+    new = _splice(text, found, rewritten)
+    if kind == "discord" and len(new) > _DISCORD_LIMIT >= len(text):
+        return text, [], f"the rewrite is longer than Discord's {_DISCORD_LIMIT}-character limit", sent, 0, seconds
+    pairs = [(p.text, t) for p, t in zip(found, rewritten) if " ".join(p.text.split()) != " ".join(t.split())]
+    return new, pairs, "", sent, sum(len(t.split()) for _, t in pairs), seconds
+
+
+def _published_file(d: Path, use) -> Path:
+    """Where one call's note waits for its PostToolUse hook. Keyed by the
+    call's id, so a call that fails never hands its note to a later one."""
+    if not isinstance(use, str) or not use:
+        return d / "published"
+    return d / f"published-{hashlib.sha256(use.encode('utf-8', 'surrogatepass')).hexdigest()[:24]}"
+
+
+def _record_publish(kind: str, sent: int, changed: int, seconds: float, refused: str) -> None:
+    cfg, _, _ = _settings()
+    if cfg is None or not getattr(cfg, "metrics", True):
+        return
+    metrics.append({"event": "message", "kind": kind, "words_sent": sent, "words_changed": changed,
+                    "seconds": round(seconds, 1), "refused": refused})
 
 
 def pre_publish(payload: dict, spawn=None) -> dict | None:
@@ -293,43 +354,51 @@ def pre_publish(payload: dict, spawn=None) -> dict | None:
     tool, tool_input = payload.get("tool_name") or "", payload.get("tool_input")
     if not isinstance(tool_input, dict):
         return None
-    kind, label, paths = _publish_fields(tool, tool_input)
+    kind, label, fields = _publish_fields(tool, tool_input)
     if not kind:
         return None
     cfg, voice, _ = _settings()
     if cfg is None or kind not in cfg.auto:
         return None
-    texts = [(path, _dig(tool_input, path)) for path in paths]
-    texts = [(path, t) for path, t in texts if isinstance(t, str) and len(t.split()) >= _PUBLISH_WORDS]
+    if kind == "mail" and str(tool_input.get("body_html") or "").strip():
+        # The HTML body is what the recipient reads; rewriting only the plain
+        # text beside it would send two versions that disagree.
+        return {"systemMessage": f"wr left {label} as written: it has an HTML body, "
+                                 "which wr does not rewrite"}
+    texts = [(path, baseline, _dig(tool_input, path)) for path, baseline in fields]
+    texts = [(path, b, t) for path, b, t in texts if isinstance(t, str) and len(t.split()) >= _PUBLISH_WORDS]
     if not texts:
         return None
+    started = time.monotonic()
 
     def rewrite(item):
-        path, text = item
+        path, baseline, text = item
+        left = _PUBLISH_BUDGET - (time.monotonic() - started)
+        if left < 30:
+            return path, text, "there was no time left inside the hook's limit"
         try:
-            return path, text, humanize_text(text.rstrip("\n") + "\n", kind="prose", spawn=spawn,
-                                             voice=voice, timeout=HOOK_TIMEOUT)
+            return path, text, _rewrite_field(kind, baseline, text, voice, spawn,
+                                              int(min(HOOK_TIMEOUT, left)))
         except (SpawnFailed, SetupError) as e:
-            return path, text, e
+            return path, text, str(e)
 
-    with ThreadPoolExecutor(max_workers=len(texts)) as pool:
+    with ThreadPoolExecutor(max_workers=min(len(texts), _PUBLISH_WORKERS)) as pool:
         outcomes = list(pool.map(rewrite, texts))
     updated, pairs, kept, seconds = copy.deepcopy(tool_input), [], [], 0.0
     for path, text, result in outcomes:
-        if isinstance(result, Exception):
-            kept.append(str(result))
+        if result is None:
             continue
-        _record_message(kind, text, result)
-        seconds = max(seconds, getattr(result, "seconds", 0.0))
-        if result.refused:
-            kept.append(result.refused)
+        if isinstance(result, str):
+            kept.append(result)
             continue
-        if not result.changed:
-            continue
-        new = result.text.rstrip("\n") + text[len(text.rstrip("\n")):]
-        if new != text:
+        new, field_pairs, refused, sent, changed, took = result
+        _record_publish(kind, sent, changed, took, refused)
+        seconds = max(seconds, took)
+        if refused:
+            kept.append(refused)
+        elif new != text:
             _set(updated, path, new)
-            pairs.append((text, new))
+            pairs += field_pairs
     reply = {}
     if kept:
         reply["systemMessage"] = f"wr kept {label} as written: {'; '.join(kept)}"
@@ -337,25 +406,34 @@ def pre_publish(payload: dict, spawn=None) -> dict | None:
         reply["hookSpecificOutput"] = {"hookEventName": "PreToolUse", "updatedInput": updated}
         d = _state_dir(payload.get("session_id"), create=True)
         if d is not None:
-            lines = [f"wr rewrote the text sent to {label} in {seconds:.0f}s, before it went out. "
-                     "Each passage it changed is below, old -> new; check that each still says what "
-                     "you meant, and correct the published text with an update if one does not:"]
-            lines += [_window_pair(old, new) for old, new in pairs[:_NOTE_PAIRS]]
-            with _locked(d), (d / "published").open("a", encoding="utf-8") as f:
-                f.write("\n".join(lines) + "\n")
+            lines = [f"wr rewrote {len(pairs)} passage{'s' if len(pairs) != 1 else ''} of the text "
+                     f"sent to {label} in {seconds:.0f}s, before it went out. Each is below, "
+                     f"old -> new; check that each still says what you meant, and "
+                     f"{_PUBLISH_AFTER[kind]}:"]
+            lines += [_window_pair(old, new) for old, new in pairs]
+            with _locked(d):
+                for stale in d.glob("published*"):
+                    try:
+                        if stale.stat().st_mtime < time.time() - 86400:
+                            stale.unlink()
+                    except OSError:
+                        pass
+                with _published_file(d, payload.get("tool_use_id")).open("a", encoding="utf-8") as f:
+                    f.write("\n".join(lines) + "\n")
     return reply or None
 
 
 def post_publish(payload: dict, spawn=None) -> dict | None:
-    """Hand Claude, right after the call, what pre_publish changed."""
+    """Hand Claude, right after the call, what pre_publish changed in it."""
     d = _state_dir(payload.get("session_id"))
     if d is None or not d.is_dir():
         return None
     with _locked(d):
-        note = _take(d / "published")
+        note = _take(_published_file(d, payload.get("tool_use_id")))
     if not note.strip():
         return None
-    return {"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": note[:PART_LIMIT]}}
+    return {"hookSpecificOutput": {"hookEventName": "PostToolUse",
+                                   "additionalContext": _deliverable(d, note)}}
 
 
 def _rewrite_message(candidate, voice: str, spawn):
@@ -805,6 +883,37 @@ def _prune_edits(d: Path, before: float) -> None:
     log.write_text("".join(k + "\n" for k in keep), encoding="utf-8")
 
 
+def _deliverable(d: Path, text: str) -> str:
+    """The note as a hook can deliver it.
+
+    Claude Code would show a 2KB preview of a longer note (13.9KB on
+    2026-09-21), so whole lines go in up to the limit and the complete note is
+    kept in a file Claude can read."""
+    if len(text) <= PART_LIMIT:
+        return text
+    for old in d.glob("note-*.txt"):
+        try:
+            if old.stat().st_mtime < time.time() - 7 * 86400:
+                old.unlink()
+        except OSError:
+            pass
+    full = d / f"note-{time.time_ns()}.txt"
+    try:
+        full.write_text(text, encoding="utf-8")
+        pointer = (f"The note is longer than a hook can deliver; the complete list, with "
+                   f"every passage old and new, is in {full}. Read it before your reply.")
+    except OSError:
+        pointer = ("The note is longer than a hook can deliver and could not be saved; "
+                   "compare each text named above with what you sent.")
+    kept, size = [], len(pointer) + 2
+    for line in text.splitlines():
+        if size + len(line) + 1 > PART_LIMIT:
+            break
+        kept.append(line)
+        size += len(line) + 1
+    return "\n".join(kept) + "\n" + pointer + "\n"
+
+
 def prompt(payload: dict, spawn=None) -> dict | None:
     """Tell Claude which files wr rewrote since its last turn."""
     d = _state_dir(payload.get("session_id"))
@@ -816,31 +925,7 @@ def prompt(payload: dict, spawn=None) -> dict | None:
         return None
     text = ("Since your last message, wr ran in the background on the markdown files you "
             "wrote. Read a file again before editing it.\n" + done)
-    if len(text) > PART_LIMIT:
-        # Claude Code would show a 2KB preview of a longer note (13.9KB on
-        # 2026-09-21), so whole lines go in up to the limit and the complete
-        # note is kept in a file Claude can read.
-        for old in d.glob("note-*.txt"):
-            try:
-                if old.stat().st_mtime < time.time() - 7 * 86400:
-                    old.unlink()
-            except OSError:
-                pass
-        full = d / f"note-{time.time_ns()}.txt"
-        try:
-            full.write_text(text, encoding="utf-8")
-            pointer = (f"The note is longer than a hook can deliver; the complete list, with "
-                       f"every passage old and new, is in {full}. Read it before your reply.")
-        except OSError:
-            pointer = ("The note is longer than a hook can deliver and could not be saved; "
-                       "compare each file named above with `git diff`.")
-        kept, size = [], len(pointer) + 2
-        for line in text.splitlines():
-            if size + len(line) + 1 > PART_LIMIT:
-                break
-            kept.append(line)
-            size += len(line) + 1
-        text = "\n".join(kept) + "\n" + pointer + "\n"
+    text = _deliverable(d, text)
     return {"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": text}}
 
 
