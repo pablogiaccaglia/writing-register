@@ -728,7 +728,9 @@ _AUTO_LABELS = (("commit", "commit messages"), ("pr", "PR descriptions"),
 # 9.9KB). The voice is longer, so the plugin registers the session and subagent
 # hooks PARTS times, and each registration sends one part (2026-09-21).
 PART_LIMIT = 9000
-PARTS = 4
+# Six registrations carry about 54,000 characters; a voice of about 26,000
+# filled four on 2026-09-25, so two more give it room to grow.
+PARTS = 6
 _REST = ("The rest of this context did not fit in what Claude Code delivers to a hook. "
          "Run `wr voice --core` to read the whole voice; the machine-writing patterns are "
          "in the humanizer skill.")

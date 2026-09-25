@@ -22,6 +22,16 @@
             "type": "command",
             "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; P=\"$(cat)\"; printf '%s' \"$P\" | \"$W\" hook session-start --part 4 2>/dev/null && exit 0; exit 0",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; P=\"$(cat)\"; printf '%s' \"$P\" | \"$W\" hook session-start --part 5 2>/dev/null && exit 0; exit 0",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; P=\"$(cat)\"; printf '%s' \"$P\" | \"$W\" hook session-start --part 6 2>/dev/null && exit 0; exit 0",
+            "timeout": 15
           }
         ]
       }
@@ -104,6 +114,16 @@
           {
             "type": "command",
             "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; P=\"$(cat)\"; printf '%s' \"$P\" | \"$W\" hook subagent-start --part 4 2>/dev/null && exit 0; exit 0",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; P=\"$(cat)\"; printf '%s' \"$P\" | \"$W\" hook subagent-start --part 5 2>/dev/null && exit 0; exit 0",
+            "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "W=\"$(command -v wr 2>/dev/null || echo \"$HOME/.local/bin/wr\")\"; [ -x \"$W\" ] || exit 0; P=\"$(cat)\"; printf '%s' \"$P\" | \"$W\" hook subagent-start --part 6 2>/dev/null && exit 0; exit 0",
             "timeout": 15
           }
         ]

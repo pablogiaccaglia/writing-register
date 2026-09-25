@@ -142,7 +142,7 @@ caller stays plain.
 Claude Code shows of one hook's text, so until 2026-09-21 every session-start
 and subagent delivery reached the model as its first 2KB only: 227 deliveries
 since 2026-09-15, none whole. The plugin now registers each of the two hooks
-four times, and `wr hook ... --part K` sends only part K, cut where a section
+six times, and `wr hook ... --part K` sends only part K, cut where a section
 starts, at most 9,000 characters, and labelled "part K of N" because Claude Code
 may deliver the parts in any order. A live check in an interactive session
 showed a new subagent receiving all three parts of the voice in full.
