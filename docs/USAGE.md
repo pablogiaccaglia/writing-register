@@ -33,7 +33,13 @@ wr hook <event> [--part N]               (called by the plugin's hooks)
 
 The command handles the paths one at a time and makes two model calls for each file. The first call rewrites the file, and the second checks the rewrite against the repository's code. A short file takes a few seconds and a long one can take several minutes. For example, when the documentation of one service was rewritten with this command on 2026-09-14, each document took between 46 seconds and a little over 8 minutes.
 
-Before using the command, log in to the `claude` tool through `claude` itself. The command starts the tool with only basic environment variables such as `PATH`, `HOME`, the locale and the proxy settings, so a key or token kept in an environment variable such as `ANTHROPIC_API_KEY` never reaches it.
+Before using the command, log in to the `claude` tool through `claude` itself. The command starts the tool with only basic environment variables such as `PATH`, `HOME`, the locale and the proxy settings, so a key or token kept in an environment variable such as `ANTHROPIC_API_KEY` never reaches it. The tool therefore uses the account logged in to its default configuration folder, `~/.claude`, and not the one of the Claude Code session that triggered the rewrite. To run wr's calls on another account, log that account in to its own folder and name the folder in the configuration:
+
+```toml
+claude_config_dir = "~/.claude-other"
+```
+
+wr then starts the tool with `CLAUDE_CONFIG_DIR` set to that folder.
 
 | Option | What it does |
 |---|---|

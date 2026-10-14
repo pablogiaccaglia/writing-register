@@ -24,7 +24,7 @@ from .resources import VOICES_DIR
 REPO = Path(__file__).resolve().parents[2]
 CONFIG_ENV = "WR_CONFIG"
 CORE_MARKER = "<!-- wr:end-of-core -->"
-KNOWN_KEYS = {"voice", "auto", "metrics"}
+KNOWN_KEYS = {"voice", "auto", "metrics", "claude_config_dir"}
 # What wr may rewrite by itself through the plugin's hooks (2026-09-15).
 AUTO_VALUES = {"markdown", "commit", "pr", "notion", "mail", "discord"}
 
@@ -40,6 +40,10 @@ class Config:
     auto: frozenset = frozenset()
     # Whether the hooks keep a line about each rewrite (see metrics.py).
     metrics: bool = True
+    # The Claude Code configuration folder wr's model calls run with, so they
+    # can use another account than the session that triggers them
+    # (2026-10-14). None: claude's own default, ~/.claude.
+    claude_config_dir: Path | None = None
 
 
 def config_path() -> Path:
@@ -121,8 +125,13 @@ def load_config() -> Config:
     if bad:
         raise ConfigError(f"{path}: auto has unknown values: {', '.join(bad)}. "
                           f"Allowed: {', '.join(sorted(AUTO_VALUES))}")
+    ccd = data.get("claude_config_dir", "")
+    if not isinstance(ccd, str):
+        raise ConfigError(f"{path}: claude_config_dir must be a path, such as "
+                          f"\"~/.claude-other\"")
+    ccd_path = Path(ccd.strip()).expanduser() if ccd.strip() else None
     return Config(path=path, voice=resolve_voice(value, path.parent),
-                  auto=frozenset(auto), metrics=meter)
+                  auto=frozenset(auto), metrics=meter, claude_config_dir=ccd_path)
 
 
 GENERATED = "<!-- wr:generated"

@@ -129,3 +129,19 @@ def test_auto_must_be_a_list(tmp_path, monkeypatch):
 def test_the_shipped_voices_parse_and_have_a_core():
     for f in sorted(c.VOICES_DIR.glob("*.md")):
         assert c.voice_core(f.read_text(encoding="utf-8")).strip(), f.name
+
+
+def test_no_claude_config_dir_by_default():
+    assert c.load_config().claude_config_dir is None
+
+
+def test_claude_config_dir_is_expanded(tmp_path, monkeypatch):
+    _config(tmp_path, monkeypatch, 'claude_config_dir = "~/.claude-other"\n')
+    from pathlib import Path
+    assert c.load_config().claude_config_dir == Path.home() / ".claude-other"
+
+
+def test_claude_config_dir_must_be_a_string(tmp_path, monkeypatch):
+    _config(tmp_path, monkeypatch, "claude_config_dir = 3\n")
+    with pytest.raises(c.ConfigError, match="claude_config_dir"):
+        c.load_config()

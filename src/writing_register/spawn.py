@@ -108,7 +108,20 @@ def _call_cwd():
 
 
 def _child_env() -> dict:
-    return {k: os.environ[k] for k in ALLOWED_ENV if k in os.environ}
+    """The allowlist, plus CLAUDE_CONFIG_DIR when the user's configuration
+    names one (`claude_config_dir`). The parent's own CLAUDE_CONFIG_DIR is
+    never inherited: the session that triggers a rewrite may be on an account
+    the user does not want wr's calls charged to (2026-10-14)."""
+    env = {k: os.environ[k] for k in ALLOWED_ENV if k in os.environ}
+    from .config import ConfigError, load_config
+    try:
+        ccd = load_config().claude_config_dir
+    except ConfigError:
+        # The callers report a broken configuration themselves.
+        ccd = None
+    if ccd is not None:
+        env["CLAUDE_CONFIG_DIR"] = str(ccd)
+    return env
 
 
 @dataclass

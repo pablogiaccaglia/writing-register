@@ -214,3 +214,24 @@ def test_the_export_holds_the_tracked_files_and_the_overlay(tmp_path):
     finally:
         remove_export(export)
     assert not export.exists()
+
+
+def test_the_parent_claude_config_dir_is_not_inherited(monkeypatch, tmp_path):
+    """The parent session's own account is not passed on by accident."""
+    monkeypatch.setenv("WR_CONFIG", str(tmp_path / "absent.toml"))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", "/somewhere/else")
+    f = Fake()
+    run("p", runner=f)
+    assert "CLAUDE_CONFIG_DIR" not in f.kw["env"]
+
+
+def test_claude_config_dir_from_the_configuration_reaches_the_child(monkeypatch, tmp_path):
+    """2026-10-14: wr's model calls can run on another Claude account than the
+    session that triggers them, named in the user's configuration."""
+    cfg = tmp_path / "config.toml"
+    cfg.write_text('claude_config_dir = "~/.claude-other"\n', encoding="utf-8")
+    monkeypatch.setenv("WR_CONFIG", str(cfg))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", "/the/parent/session")
+    f = Fake()
+    run("p", runner=f)
+    assert f.kw["env"]["CLAUDE_CONFIG_DIR"] == str(Path.home() / ".claude-other")
