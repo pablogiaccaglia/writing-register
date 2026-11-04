@@ -108,10 +108,10 @@ def _call_cwd():
 
 
 def _child_env() -> dict:
-    """The allowlist, plus CLAUDE_CONFIG_DIR when the user's configuration
-    names one (`claude_config_dir`). The parent's own CLAUDE_CONFIG_DIR is
-    never inherited: the session that triggers a rewrite may be on an account
-    the user does not want wr's calls charged to (2026-10-14)."""
+    """The allowlist, plus the CLAUDE_CONFIG_DIR of the session that runs wr,
+    so wr's model calls use the same Claude account as that session
+    (2026-11-04). A `claude_config_dir` in the user's configuration overrides
+    it; without either, claude uses its default folder, ~/.claude."""
     env = {k: os.environ[k] for k in ALLOWED_ENV if k in os.environ}
     from .config import ConfigError, load_config
     try:
@@ -121,6 +121,8 @@ def _child_env() -> dict:
         ccd = None
     if ccd is not None:
         env["CLAUDE_CONFIG_DIR"] = str(ccd)
+    elif os.environ.get("CLAUDE_CONFIG_DIR"):
+        env["CLAUDE_CONFIG_DIR"] = os.environ["CLAUDE_CONFIG_DIR"]
     return env
 
 

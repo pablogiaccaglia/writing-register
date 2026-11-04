@@ -165,7 +165,7 @@ All settings live in one file on your machine, `~/.config/writing-register/confi
 | `voice` | a voice name, a path to a voice file or directory, or `"none"` | The voice every layer follows; a relative path is read from the folder that holds the file |
 | `auto` | any of `"markdown"`, `"commit"`, `"pr"`, `"notion"`, `"mail"`, `"discord"` | What the plugin rewrites by itself |
 | `metrics` | `true` (the default) or `false` | Whether each automatic rewrite leaves one line of numbers, which `wr report` totals |
-| `claude_config_dir` | a path, such as `"~/.claude-other"` | The Claude Code configuration folder, and so the account, wr's model calls run with; without it they use `~/.claude` |
+| `claude_config_dir` | a path, such as `"~/.claude-other"` | The Claude Code configuration folder, and so the account, wr's model calls run with; without it they use the folder of the session that runs wr, which is `~/.claude` for a session on the default account |
 
 `wr voice` shows the active voice and where the choice came from. A mistake in the file, such as a misspelled setting, makes `wr` stop with a message naming it, and the plugin repeats that message at the start of each session. The voice and the automatic rewrites stay off until the mistake is fixed.
 

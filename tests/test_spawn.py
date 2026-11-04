@@ -216,10 +216,20 @@ def test_the_export_holds_the_tracked_files_and_the_overlay(tmp_path):
     assert not export.exists()
 
 
-def test_the_parent_claude_config_dir_is_not_inherited(monkeypatch, tmp_path):
-    """The parent session's own account is not passed on by accident."""
+def test_the_session_claude_config_dir_is_inherited(monkeypatch, tmp_path):
+    """2026-11-04: wr's model calls run on the account of the session that
+    triggers them."""
     monkeypatch.setenv("WR_CONFIG", str(tmp_path / "absent.toml"))
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", "/somewhere/else")
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", "/the/parent/session")
+    f = Fake()
+    run("p", runner=f)
+    assert f.kw["env"]["CLAUDE_CONFIG_DIR"] == "/the/parent/session"
+
+
+def test_no_claude_config_dir_without_session_or_configuration(monkeypatch, tmp_path):
+    """A session on the default account sets no folder, and neither does wr."""
+    monkeypatch.setenv("WR_CONFIG", str(tmp_path / "absent.toml"))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR", raising=False)
     f = Fake()
     run("p", runner=f)
     assert "CLAUDE_CONFIG_DIR" not in f.kw["env"]

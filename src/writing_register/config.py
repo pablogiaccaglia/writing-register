@@ -40,9 +40,9 @@ class Config:
     auto: frozenset = frozenset()
     # Whether the hooks keep a line about each rewrite (see metrics.py).
     metrics: bool = True
-    # The Claude Code configuration folder wr's model calls run with, so they
-    # can use another account than the session that triggers them
-    # (2026-10-14). None: claude's own default, ~/.claude.
+    # The Claude Code configuration folder wr's model calls run with, when
+    # they must use another account than the session that triggers them
+    # (2026-10-14). None: the session's own folder (2026-11-04).
     claude_config_dir: Path | None = None
 
 
