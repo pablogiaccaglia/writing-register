@@ -93,6 +93,8 @@ def _updated(reply):
 
 NOTION_CREATE = "mcp__plugin_Notion_notion__notion-create-pages"
 NOTION_UPDATE = "mcp__plugin_Notion_notion__notion-update-page"
+AGENT_CREATE = "mcp__notion-agent-tools__notion_create_page"
+AGENT_UPDATE = "mcp__notion-agent-tools__notion_update_page"
 COMPOSE = "mcp__plugin_apple-mail_apple-mail__compose_email"
 REPLY = "mcp__plugin_apple-mail_apple-mail__reply_to_email"
 DISCORD = "mcp__discord__discord_send_message"
@@ -114,6 +116,25 @@ def test_an_update_rewrites_only_the_paragraph_claude_added(setup):
     assert new["content_updates"][0]["old_str"] == LONG, "old_str must still match the page"
     assert new["content_updates"][0]["new_str"] == f"{LONG}\n\n{OTHER_BETTER}", \
         "the teammate's paragraph is left as it was"
+
+
+def test_a_page_made_with_notion_agent_tools_is_rewritten(setup):
+    tool_input = {"parent": "p", "title": "Alerts", "markdown": f"# Alerts\n\n{LONG}\n"}
+    new = _updated(_pre(setup, AGENT_CREATE, tool_input))
+    assert new["markdown"] == f"# Alerts\n\n{BETTER}\n" and new["title"] == "Alerts"
+
+
+def test_a_notion_agent_tools_update_rewrites_only_new_text(setup):
+    tool_input = {"page": "p", "edits": [{"old": LONG, "new": f"{LONG}\n\n{OTHER}"}]}
+    new = _updated(_pre(setup, AGENT_UPDATE, tool_input))
+    assert new["edits"][0]["old"] == LONG, "the old text must still match the page"
+    assert new["edits"][0]["new"] == f"{LONG}\n\n{OTHER_BETTER}"
+    replaced = _updated(_pre(setup, AGENT_UPDATE, {"page": "p", "replace": LONG}))
+    assert replaced["replace"] == BETTER
+
+
+def test_a_notion_agent_tools_property_update_is_left_alone(setup):
+    assert _pre(setup, AGENT_UPDATE, {"page": "p", "properties": {"Summary": LONG}}) is None
 
 
 def test_a_small_edit_to_existing_text_is_not_rewritten(setup):
@@ -251,10 +272,11 @@ def test_the_plugin_registers_both_hooks_for_these_tools():
         groups = [g for g in registered[event] if any(f"hook {name}" in h["command"] for h in g["hooks"])]
         assert len(groups) == 1, event
         matcher = re.compile(f"^(?:{groups[0]['matcher']})$")
-        for tool in (NOTION_CREATE, NOTION_UPDATE, COMPOSE, REPLY, DISCORD,
+        for tool in (NOTION_CREATE, NOTION_UPDATE, AGENT_CREATE, AGENT_UPDATE, COMPOSE, REPLY, DISCORD,
                      "mcp__discord__discord_send_dm", "mcp__claude_ai_Notion__notion-update-page"):
             assert matcher.match(tool), (event, tool)
-        for tool in ("mcp__plugin_Notion_notion__notion-fetch", "Bash", "mcp__discord__discord_read_messages"):
+        for tool in ("mcp__plugin_Notion_notion__notion-fetch", "Bash", "mcp__discord__discord_read_messages",
+                     "mcp__notion-agent-tools__notion_fetch", "mcp__notion-agent-tools__notion_add_comment"):
             assert not matcher.match(tool), (event, tool)
 
 

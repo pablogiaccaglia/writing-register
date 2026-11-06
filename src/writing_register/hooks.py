@@ -263,7 +263,7 @@ def _publish_fields(tool: str, tool_input: dict) -> tuple[str, str, list[tuple]]
     """The `auto` value, a label and (path, baseline) for each prose field of one call.
 
     The baseline is the text the field replaces, so only what is new against it
-    is rewritten: a Notion update's `old_str`, or nothing."""
+    is rewritten: a Notion update's `old_str` (or `old` for notion-agent-tools), or nothing."""
     if tool.endswith("notion-create-pages"):
         pages = tool_input.get("pages") or []
         return "notion", "the Notion page", [(("pages", i, "content"), "") for i, _ in enumerate(pages)]
@@ -273,6 +273,14 @@ def _publish_fields(tool: str, tool_input: dict) -> tuple[str, str, list[tuple]]
                    u.get("old_str") if isinstance(u, dict) and isinstance(u.get("old_str"), str) else "")
                   for i, u in enumerate(updates)]
         fields += [((k,), "") for k in ("new_str", "content") if isinstance(tool_input.get(k), str)]
+        return "notion", "the Notion page", fields
+    if tool.endswith("notion_create_page"):  # notion-agent-tools, on the public API
+        return "notion", "the Notion page", [(("markdown",), "")]
+    if tool.endswith("notion_update_page"):
+        edits = tool_input.get("edits") or []
+        fields = [(("edits", i, "new"), e.get("old") if isinstance(e, dict) and isinstance(e.get("old"), str) else "")
+                  for i, e in enumerate(edits)]
+        fields += [(("replace",), "")] if isinstance(tool_input.get("replace"), str) else []
         return "notion", "the Notion page", fields
     if tool.endswith("compose_email"):
         return "mail", "the email", [(("body",), "")]

@@ -58,7 +58,7 @@
         ]
       },
       {
-        "matcher": "mcp__.*[Nn]otion.*__notion-(create-pages|update-page)|mcp__.*mail.*__(compose_email|reply_to_email)|mcp__.*discord.*__discord_send_(message|dm)",
+        "matcher": "mcp__.*[Nn]otion.*__notion-(create-pages|update-page)|mcp__.*[Nn]otion.*__notion_(create|update)_page|mcp__.*mail.*__(compose_email|reply_to_email)|mcp__.*discord.*__discord_send_(message|dm)",
         "hooks": [
           {
             "type": "command",
@@ -80,7 +80,7 @@
         ]
       },
       {
-        "matcher": "mcp__.*[Nn]otion.*__notion-(create-pages|update-page)|mcp__.*mail.*__(compose_email|reply_to_email)|mcp__.*discord.*__discord_send_(message|dm)",
+        "matcher": "mcp__.*[Nn]otion.*__notion-(create-pages|update-page)|mcp__.*[Nn]otion.*__notion_(create|update)_page|mcp__.*mail.*__(compose_email|reply_to_email)|mcp__.*discord.*__discord_send_(message|dm)",
         "hooks": [
           {
             "type": "command",
